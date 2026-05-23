@@ -881,52 +881,112 @@ def generate_lang():
 # Toll system: RFC coins + toll camera block
 # =============================================================
 COIN_PALETTES = {
-    5: {
-        "face":  (188, 188, 198, 255),  # iron nugget — pale silver
-        "edge":  (118, 118, 128, 255),
-        "shine": (225, 225, 235, 255),
-    },
-    10: {
-        "face":  (210, 215, 220, 255),  # iron ingot — brighter silver
-        "edge":  (130, 132, 140, 255),
+    5: {  # iron nugget — silver coin
+        "face":  (200, 205, 215, 255),
+        "edge":  (95, 100, 115, 255),
         "shine": (240, 245, 250, 255),
+        "label": (50, 55, 70, 255),
     },
-    50: {
-        "face":  (230, 195, 105, 255),  # gold nugget — pale gold
-        "edge":  (160, 130, 55, 255),
-        "shine": (250, 230, 165, 255),
+    10: {  # iron ingot — brighter silver
+        "face":  (215, 220, 230, 255),
+        "edge":  (110, 115, 130, 255),
+        "shine": (250, 252, 255, 255),
+        "label": (55, 60, 75, 255),
     },
-    100: {
-        "face":  (250, 215, 80, 255),   # gold ingot — bright gold
-        "edge":  (175, 135, 35, 255),
+    50: {  # gold nugget — pale gold
+        "face":  (240, 200, 95, 255),
+        "edge":  (150, 110, 35, 255),
+        "shine": (255, 235, 165, 255),
+        "label": (95, 60, 15, 255),
+    },
+    100: {  # gold ingot — rich gold
+        "face":  (255, 215, 70, 255),
+        "edge":  (160, 115, 25, 255),
         "shine": (255, 240, 145, 255),
+        "label": (105, 65, 15, 255),
     },
-    500: {
-        "face":  (85, 200, 110, 255),   # emerald — green
-        "edge":  (40, 125, 70, 255),
-        "shine": (155, 240, 175, 255),
+    500: {  # emerald — green
+        "face":  (80, 200, 115, 255),
+        "edge":  (30, 110, 60, 255),
+        "shine": (170, 245, 190, 255),
+        "label": (15, 65, 35, 255),
     },
-    1000: {
-        "face":  (135, 230, 240, 255),  # diamond — cyan
-        "edge":  (55, 145, 175, 255),
-        "shine": (200, 250, 255, 255),
+    1000: {  # diamond — cyan
+        "face":  (140, 230, 240, 255),
+        "edge":  (45, 130, 165, 255),
+        "shine": (210, 250, 255, 255),
+        "label": (20, 75, 100, 255),
     },
 }
 
+# 3-wide × 5-tall pixel font for coin denomination labels. Each glyph row
+# uses 'X' for filled and '.' for empty. Compact, no descenders.
+COIN_DIGIT_FONT = {
+    '0': ['XXX', 'X.X', 'X.X', 'X.X', 'XXX'],
+    '1': ['.X.', 'XX.', '.X.', '.X.', 'XXX'],
+    '2': ['XXX', '..X', 'XXX', 'X..', 'XXX'],
+    '3': ['XXX', '..X', '.XX', '..X', 'XXX'],
+    '4': ['X.X', 'X.X', 'XXX', '..X', '..X'],
+    '5': ['XXX', 'X..', 'XXX', '..X', 'XXX'],
+    '6': ['XXX', 'X..', 'XXX', 'X.X', 'XXX'],
+    '7': ['XXX', '..X', '.X.', 'X..', 'X..'],
+    '8': ['XXX', 'X.X', 'XXX', 'X.X', 'XXX'],
+    '9': ['XXX', 'X.X', 'XXX', '..X', 'XXX'],
+    'H': ['X.X', 'X.X', 'XXX', 'X.X', 'X.X'],
+    'K': ['X.X', 'X.X', 'XX.', 'X.X', 'X.X'],
+}
+
+# Coin face labels. Full numeric "100"/"500" are too wide at 3-pixel font;
+# "1H"/"5H" (one hundred / five hundred) and "1K" (one thousand) are the
+# legible abbreviations that fit on the 12-pixel coin face.
+COIN_LABELS = {
+    5:    "5",
+    10:   "10",
+    50:   "50",
+    100:  "1H",
+    500:  "5H",
+    1000: "1K",
+}
+
+def _draw_coin_label(img, text, color):
+    """Draw `text` centered on the 16x16 coin face using the 3x5 pixel font,
+    with 1-pixel inter-glyph spacing for readability."""
+    n = len(text)
+    width = n * 3 + (n - 1)  # 3 wide glyphs + 1px spacing
+    start_x = (16 - width) // 2
+    start_y = 6
+    for ci, ch in enumerate(text):
+        glyph = COIN_DIGIT_FONT.get(ch)
+        if glyph is None:
+            continue
+        for ry in range(5):
+            row = glyph[ry]
+            for cx in range(3):
+                if row[cx] == 'X':
+                    img.putpixel((start_x + ci * 4 + cx, start_y + ry), color)
+
 def make_coin_icon(denom, palette, out_path):
-    """Render a single 16x16 coin icon: edge ring, filled face, top-left shine pixel."""
+    """16x16 coin with discrete edge ring, inner face, shine quadrant, and
+    pixel-font denomination label."""
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    # Outer ring (the "edge" of the coin)
+    # Outer rim — 14×14 disc filled with the dark edge color.
     d.ellipse([1, 1, 14, 14], fill=palette["edge"])
-    # Inner face
-    d.ellipse([3, 3, 12, 12], fill=palette["face"])
-    # Shine highlight (small bright spot in upper-left, sells the round look)
-    d.ellipse([4, 4, 7, 7], fill=palette["shine"])
-    # Two pixels of darker rim to give depth on bottom-right
+    # Inner face — 12×12 disc on top of the rim.
+    d.ellipse([2, 2, 13, 13], fill=palette["face"])
+    # Shine quadrant in the upper-left (slight 3D effect).
+    d.ellipse([3, 3, 7, 7], fill=palette["shine"])
+    # Soften the shine boundary so it doesn't look like a separate sticker.
+    img.putpixel((7, 4), palette["face"])
+    img.putpixel((4, 7), palette["face"])
+    # Darker pixels bottom-right give depth opposite the shine.
     img.putpixel((11, 11), palette["edge"])
     img.putpixel((12, 10), palette["edge"])
     img.putpixel((10, 12), palette["edge"])
+    img.putpixel((11, 10), palette["edge"])
+    img.putpixel((10, 11), palette["edge"])
+    # Denomination label centered, drawn last so it stays on top of shine/rim.
+    _draw_coin_label(img, COIN_LABELS[denom], palette["label"])
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path)
 
