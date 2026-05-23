@@ -10,7 +10,7 @@ import net.minecraft.world.World;
  */
 public class CarEntity extends AbstractVehicleEntity {
 
-    private static final double[] GEAR_TOP_SPEED = {0.35, 0.80, 1.40, 2.10, 2.78};
+    private static final double[] GEAR_TOP_SPEED = {0.35, 0.75, 1.30, 2.0, 2.3};
 
     private static final double[][] SEATS = {
         { 0.45, 0.0,  0.20},  // 0 driver  - front-left  (US style)
