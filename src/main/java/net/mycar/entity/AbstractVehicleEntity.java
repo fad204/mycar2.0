@@ -74,6 +74,10 @@ public abstract class AbstractVehicleEntity extends Entity {
         DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.FLOAT);
     protected static final TrackedData<Integer> VARIANT =
         DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    /** Synced flag: this plate has accrued unpaid toll/speed-camera debt.
+     *  Read by the entity renderers to color the plate label red. */
+    protected static final TrackedData<Boolean> HAS_DEBT =
+        DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     // ---------------- Server-side runtime state ----------------
     protected double currentSpeed = 0.0;
@@ -99,6 +103,7 @@ public abstract class AbstractVehicleEntity extends Entity {
         this.dataTracker.startTracking(GEAR, 1);
         this.dataTracker.startTracking(DAMAGE_TAKEN, 0.0f);
         this.dataTracker.startTracking(VARIANT, 0);
+        this.dataTracker.startTracking(HAS_DEBT, false);
     }
 
     // ---------------- Subclass-supplied tuning ----------------
@@ -150,6 +155,12 @@ public abstract class AbstractVehicleEntity extends Entity {
     public void setGear(int v) { this.dataTracker.set(GEAR, MathHelper.clamp(v, 1, NUM_GEARS)); }
     public int getVariant()    { return this.dataTracker.get(VARIANT); }
     public void setVariant(int v) { this.dataTracker.set(VARIANT, MathHelper.clamp(v, 0, NUM_VARIANTS - 1)); }
+    /** Raw velocity along the heading axis, in blocks per tick. Used by the
+     *  speed camera (which converts to km/h via {@code |speed| * 20 * 3.6}). */
+    public double getCurrentSpeed() { return this.currentSpeed; }
+    /** Synced flag mirroring {@link net.mycar.util.RfcAccountState#getDebt(String)}
+     *  for this vehicle's plate. Used by the renderer to color the plate red. */
+    public boolean hasDebt() { return this.dataTracker.get(HAS_DEBT); }
 
     public void shiftGearUp()   { if (hasGears()) setGear(getGear() + 1); }
     public void shiftGearDown() { if (hasGears()) setGear(getGear() - 1); }
@@ -188,6 +199,18 @@ public abstract class AbstractVehicleEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
+
+        // Server-side: refresh the synced HAS_DEBT flag once per second from
+        // the world's RFC account state. Cheap (single map lookup) and keeps
+        // the red plate visualization in sync without per-tick overhead.
+        if (!this.world.isClient && this.age % 20 == 0 && this.hasCustomName()) {
+            String plate = this.getCustomName().getString();
+            boolean hasDebt = net.mycar.util.RfcAccountState.get((ServerWorld) this.world)
+                                  .getDebt(plate) > 0;
+            if (this.dataTracker.get(HAS_DEBT) != hasDebt) {
+                this.dataTracker.set(HAS_DEBT, hasDebt);
+            }
+        }
 
         if (this.isLogicalSideForUpdatingMovement()) {
             // Gravity
@@ -365,33 +388,45 @@ public abstract class AbstractVehicleEntity extends Entity {
         }
 
         // ----- RFC deposit (right-click with coin; vehicle must have a plate) -----
-        // Adds the coin's denomination to the plate's persistent balance and
-        // consumes the coin. No-op for plate-less vehicles or for bicycles in
-        // creative mode (creative still works, just doesn't decrement the stack).
+        // Adds the coin's denomination to the plate's account. Pays down debt
+        // first (so fines clear before new balance accrues), then any leftover
+        // tops up the balance.
         if (stack.getItem() instanceof RfcCoinItem && this.hasCustomName()) {
             if (!this.world.isClient) {
                 int denom = ((RfcCoinItem) stack.getItem()).getDenomination();
                 String plate = this.getCustomName().getString();
                 RfcAccountState state = RfcAccountState.get((ServerWorld) this.world);
-                state.deposit(plate, denom);
-                int newBalance = state.getBalance(plate);
+                int leftover = state.payDebt(plate, denom);
+                int paidToDebt = denom - leftover;
+                state.addBalance(plate, leftover);
                 if (!player.abilities.creativeMode) stack.decrement(1);
-                player.sendMessage(new LiteralText(
-                    "§e[Plate " + plate + "] §f+" + denom + " RFC §7(balance: " + newBalance + ")"
-                ), false);
+                int newBal  = state.getBalance(plate);
+                int newDebt = state.getDebt(plate);
+                StringBuilder msg = new StringBuilder("§e[Plate " + plate + "] §f+");
+                msg.append(denom).append(" RFC §7(");
+                if (paidToDebt > 0) {
+                    msg.append("§c-").append(paidToDebt).append(" debt§7, ");
+                }
+                msg.append("balance: ").append(newBal);
+                if (newDebt > 0) msg.append(", §cdebt: ").append(newDebt).append("§7");
+                msg.append(")");
+                player.sendMessage(new LiteralText(msg.toString()), false);
             }
             return ActionResult.success(this.world.isClient);
         }
 
         // ----- RFC balance check (right-click with paper; vehicle must have a plate) -----
         // Paper acts as a "balance receipt": prints the plate's current RFC
-        // balance to chat. Doesn't consume the paper.
+        // balance and outstanding debt to chat. Doesn't consume the paper.
         if (stack.getItem() == Items.PAPER && this.hasCustomName()) {
             if (!this.world.isClient) {
                 String plate = this.getCustomName().getString();
-                int bal = RfcAccountState.get((ServerWorld) this.world).getBalance(plate);
+                RfcAccountState state = RfcAccountState.get((ServerWorld) this.world);
+                int bal  = state.getBalance(plate);
+                int debt = state.getDebt(plate);
+                String tail = (debt > 0) ? "  §cDebt: §6" + debt + " RFC" : "";
                 player.sendMessage(new LiteralText(
-                    "§e[Plate " + plate + "] §fBalance: §6" + bal + " RFC"
+                    "§e[Plate " + plate + "] §fBalance: §6" + bal + " RFC" + tail
                 ), false);
             }
             return ActionResult.success(this.world.isClient);
