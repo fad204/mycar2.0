@@ -14,6 +14,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.Packet;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.tag.FluidTags;
 import net.minecraft.text.LiteralText;
 import net.minecraft.util.ActionResult;
@@ -21,6 +22,8 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.mycar.item.RfcCoinItem;
+import net.mycar.util.RfcAccountState;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -357,6 +360,39 @@ public abstract class AbstractVehicleEntity extends Entity {
                     this.setCustomNameVisible(true);
                     if (!player.abilities.creativeMode) stack.decrement(1);
                 }
+            }
+            return ActionResult.success(this.world.isClient);
+        }
+
+        // ----- RFC deposit (right-click with coin; vehicle must have a plate) -----
+        // Adds the coin's denomination to the plate's persistent balance and
+        // consumes the coin. No-op for plate-less vehicles or for bicycles in
+        // creative mode (creative still works, just doesn't decrement the stack).
+        if (stack.getItem() instanceof RfcCoinItem && this.hasCustomName()) {
+            if (!this.world.isClient) {
+                int denom = ((RfcCoinItem) stack.getItem()).getDenomination();
+                String plate = this.getCustomName().getString();
+                RfcAccountState state = RfcAccountState.get((ServerWorld) this.world);
+                state.deposit(plate, denom);
+                int newBalance = state.getBalance(plate);
+                if (!player.abilities.creativeMode) stack.decrement(1);
+                player.sendMessage(new LiteralText(
+                    "§e[Plate " + plate + "] §f+" + denom + " RFC §7(balance: " + newBalance + ")"
+                ), false);
+            }
+            return ActionResult.success(this.world.isClient);
+        }
+
+        // ----- RFC balance check (right-click with paper; vehicle must have a plate) -----
+        // Paper acts as a "balance receipt": prints the plate's current RFC
+        // balance to chat. Doesn't consume the paper.
+        if (stack.getItem() == Items.PAPER && this.hasCustomName()) {
+            if (!this.world.isClient) {
+                String plate = this.getCustomName().getString();
+                int bal = RfcAccountState.get((ServerWorld) this.world).getBalance(plate);
+                player.sendMessage(new LiteralText(
+                    "§e[Plate " + plate + "] §fBalance: §6" + bal + " RFC"
+                ), false);
             }
             return ActionResult.success(this.world.isClient);
         }
