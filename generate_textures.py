@@ -1123,11 +1123,144 @@ def generate_toll_assets():
         "result": {"item": "mycar:toll_camera", "count": 1},
     })
 
+    # ============================================================
+    # Speed camera — same shape as toll camera but red lens & body
+    # ============================================================
+    make_speed_camera_lens(TEX_DIR / "block/speed_camera_lens.png")
+    make_speed_camera_side(TEX_DIR / "block/speed_camera_side.png")
+    make_speed_camera_top (TEX_DIR / "block/speed_camera_top.png")
+
+    write_json(BLOCK_MODEL_DIR / "speed_camera.json", {
+        "parent": "block/cube",
+        "textures": {
+            "particle": "mycar:block/speed_camera_side",
+            "down":     "mycar:block/speed_camera_lens",
+            "up":       "mycar:block/speed_camera_top",
+            "north":    "mycar:block/speed_camera_side",
+            "south":    "mycar:block/speed_camera_side",
+            "east":     "mycar:block/speed_camera_side",
+            "west":     "mycar:block/speed_camera_side",
+        },
+    })
+    write_json(BLOCKSTATE_DIR / "speed_camera.json", {
+        "variants": {"": {"model": "mycar:block/speed_camera"}},
+    })
+    write_json(MODEL_DIR / "speed_camera.json", {
+        "parent": "mycar:block/speed_camera",
+    })
+
+    # Speed camera recipe — uses a REDSTONE BLOCK (vs dust for toll) to
+    # visually differentiate at the crafting bench.
+    write_json(RECIPE_DIR / "speed_camera.json", {
+        "type": "minecraft:crafting_shaped",
+        "pattern": ["III", "IOI", "IBI"],
+        "key": {
+            "I": {"item": "minecraft:iron_ingot"},
+            "O": {"item": "minecraft:observer"},
+            "B": {"item": "minecraft:redstone_block"},
+        },
+        "result": {"item": "mycar:speed_camera", "count": 1},
+    })
+
+    # ============================================================
+    # RFC Registry — single book-like item, prints plate ledger
+    # ============================================================
+    make_rfc_registry_icon(TEX_DIR / "item/rfc_registry.png")
+    write_json(MODEL_DIR / "rfc_registry.json", {
+        "parent": "item/generated",
+        "textures": {"layer0": "mycar:item/rfc_registry"},
+    })
+    # Shapeless: 1 book + 1 RFC 10 coin → 1 registry
+    write_json(RECIPE_DIR / "rfc_registry.json", {
+        "type": "minecraft:crafting_shapeless",
+        "ingredients": [
+            {"item": "minecraft:book"},
+            {"item": "mycar:rfc_10"},
+        ],
+        "result": {"item": "mycar:rfc_registry", "count": 1},
+    })
+
+def make_speed_camera_lens(out_path):
+    """Speed-camera lens — red-tinted housing with a glowing red center
+    (radar-gun aesthetic) so players distinguish at a glance from toll camera."""
+    img = Image.new("RGBA", (16, 16), (75, 32, 32, 255))  # dark red casing
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, 15, 15], outline=(45, 18, 18, 255))
+    # Lens housing (dark)
+    d.ellipse([2, 2, 13, 13], fill=(30, 12, 12, 255), outline=(15, 5, 5, 255))
+    # Inner glowing red lens
+    d.ellipse([5, 5, 10, 10], fill=(220, 30, 30, 255))
+    # Hot center
+    img.putpixel((7, 7), (255, 200, 200, 255))
+    img.putpixel((8, 7), (255, 120, 120, 255))
+    img.putpixel((7, 8), (255, 120, 120, 255))
+    # Yellow corner warning indicator
+    img.putpixel((2, 2), (255, 220, 60, 255))
+    img.putpixel((13, 13), (255, 220, 60, 255))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+def make_speed_camera_side(out_path):
+    """Side face — gray with red and yellow warning stripes."""
+    img = Image.new("RGBA", (16, 16), (95, 100, 108, 255))
+    d = ImageDraw.Draw(img)
+    # Top + bottom darker mounting bands
+    d.rectangle([0, 0, 15, 2], fill=(70, 74, 82, 255))
+    d.rectangle([0, 13, 15, 15], fill=(70, 74, 82, 255))
+    # Red warning stripe across the middle
+    d.rectangle([0, 6, 15, 9], fill=(160, 50, 50, 255))
+    # Diagonal yellow hazard slashes within the red stripe
+    for x in range(0, 16, 4):
+        for dy in range(3):
+            xi = (x + dy) % 16
+            img.putpixel((xi, 6 + dy), (255, 220, 60, 255))
+    # Rivets
+    for x in (2, 13):
+        img.putpixel((x, 1), (40, 42, 48, 255))
+        img.putpixel((x, 14), (40, 42, 48, 255))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+def make_speed_camera_top(out_path):
+    """Top face — matches toll camera's mounting plate (this is what touches the ceiling)."""
+    img = Image.new("RGBA", (16, 16), (115, 120, 128, 255))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, 15, 15], outline=(75, 80, 88, 255))
+    for x, y in [(2, 2), (13, 2), (2, 13), (13, 13)]:
+        img.putpixel((x, y), (40, 42, 48, 255))
+        img.putpixel((x + 1, y), (60, 64, 72, 255))
+        img.putpixel((x, y + 1), (60, 64, 72, 255))
+    # Subtle red corner accent to mirror the lens color from below
+    img.putpixel((7, 7), (160, 50, 50, 255))
+    img.putpixel((8, 8), (160, 50, 50, 255))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+def make_rfc_registry_icon(out_path):
+    """Closed book icon, brown cover with gold RFC seal in the center."""
+    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # Book body — brown leather rectangle
+    d.rectangle([2, 2, 13, 14], fill=(120, 70, 35, 255), outline=(70, 40, 20, 255))
+    # Spine on the left
+    d.rectangle([2, 2, 4, 14], fill=(90, 50, 25, 255))
+    # Page edges on the right side (lighter strip)
+    d.rectangle([12, 3, 13, 13], fill=(240, 230, 200, 255))
+    for y in (5, 8, 11):
+        img.putpixel((12, y), (200, 190, 160, 255))
+    # Gold seal — small disc centered on the cover, suggests an RFC coin
+    d.ellipse([6, 6, 10, 10], fill=(255, 215, 70, 255), outline=(160, 115, 25, 255))
+    img.putpixel((7, 7), (255, 240, 145, 255))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
 def add_toll_lang_entries(obj):
     """Mutate the lang dict to include toll-system entries."""
     for denom in COIN_PALETTES:
         obj[f"item.mycar.rfc_{denom}"] = f"RFC {denom} Coin"
-    obj["block.mycar.toll_camera"] = "Toll Camera"
+    obj["block.mycar.toll_camera"]  = "Toll Camera"
+    obj["block.mycar.speed_camera"] = "Speed Camera"
+    obj["item.mycar.rfc_registry"]  = "RFC Registry"
 
 if __name__ == "__main__":
     print("Generating textures and assets...\n")
