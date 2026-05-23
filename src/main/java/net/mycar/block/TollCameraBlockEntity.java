@@ -75,8 +75,8 @@ public class TollCameraBlockEntity extends BlockEntity implements Tickable {
     }
 
     @Override
-    public NbtCompound toTag(NbtCompound tag) {
-        super.toTag(tag);
+    public NbtCompound writeNbt(NbtCompound tag) {
+        super.writeNbt(tag);
         tag.putInt("TollAmount", this.tollAmount);
         return tag;
     }
