@@ -115,9 +115,16 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
             UUID uuid = vehicle.getUuid();
             if (this.recentlyTicketed.containsKey(uuid)) continue;
 
-            // Compute vehicle's actual speed in km/h — uses |currentSpeed| so
-            // reversing fast also triggers a ticket.
-            double kmh = Math.abs(vehicle.getCurrentSpeed()) * BLOCKS_PER_TICK_TO_KMH;
+            // Compute the vehicle's actual horizontal speed from this server
+            // tick's position delta. `currentSpeed` is updated client-side
+            // (the rider owns physics) so the server reads stale 0s; the
+            // position fields ARE synced, so prevX/prevZ → getX/getZ gives
+            // a reliable per-tick velocity that we convert to km/h, matching
+            // exactly what the vehicle HUD shows.
+            double dx = vehicle.getX() - vehicle.prevX;
+            double dz = vehicle.getZ() - vehicle.prevZ;
+            double bpt = Math.sqrt(dx * dx + dz * dz);
+            double kmh = bpt * BLOCKS_PER_TICK_TO_KMH;
             if (kmh <= this.speedLimitKmh) continue;
 
             Entity primary = vehicle.getPrimaryPassenger();
