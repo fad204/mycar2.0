@@ -10,10 +10,16 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRenderDispatcher;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3f;
 
 public class TruckEntityRenderer extends EntityRenderer<TruckEntity> {
+    /** Lift the plate label above the cab. Truck cab top reaches y ≈ 2.75 and
+     *  the default label sits at y = 3.0 (only 0.25 clearance, hard to read);
+     *  +0.5 puts it comfortably above. */
+    private static final double LABEL_LIFT = 0.5;
+
     private static final Identifier[] TEXTURES;
     static {
         TEXTURES = new Identifier[AbstractVehicleEntity.NUM_VARIANTS];
@@ -51,5 +57,14 @@ public class TruckEntityRenderer extends EntityRenderer<TruckEntity> {
 
         matrices.pop();
         super.render(entity, yaw, tickDelta, matrices, vcp, light);
+    }
+
+    @Override
+    protected void renderLabelIfPresent(TruckEntity entity, Text text, MatrixStack matrices,
+                                        VertexConsumerProvider vcp, int light) {
+        matrices.push();
+        matrices.translate(0.0D, LABEL_LIFT, 0.0D);
+        super.renderLabelIfPresent(entity, text, matrices, vcp, light);
+        matrices.pop();
     }
 }
