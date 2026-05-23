@@ -52,7 +52,7 @@ public class TruckEntity extends AbstractVehicleEntity implements Inventory {
     @Override protected double     getFuelConsumptionAtTop() { return 0.10; } // heavier = thirstier
     @Override protected int        getMaxPassengers()        { return 2; }
     @Override protected double[][] getSeatLocalPositions()   { return SEATS; }
-    @Override public    double     getMountedHeightOffset()  { return 1.0; } // higher cab
+    @Override public    double     getMountedHeightOffset()  { return 1.0; } // head at cab roof — fe1de6e baseline
 
     @Override
     protected Item getDropItem() {
