@@ -2,12 +2,14 @@ package net.mycar.block;
 
 import net.mycar.MyCarMod;
 import net.mycar.entity.AbstractVehicleEntity;
+import net.mycar.util.RfcAccountState;
 import net.mycar.util.RfcCurrency;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.LiteralText;
@@ -42,8 +44,8 @@ public class TollCameraBlockEntity extends BlockEntity implements Tickable {
     private static final int DETECTION_HALF_WIDTH = 1;
     /** Charge cooldown per vehicle, in ticks. 60 ticks = 3 seconds. */
     private static final int COOLDOWN_TICKS = 60;
-    /** Default toll cost when the block is first placed. */
-    private static final int DEFAULT_TOLL = 100;
+    /** Default toll cost when the block is first placed. 0 = inactive until configured. */
+    private static final int DEFAULT_TOLL = 0;
 
     private int tollAmount = DEFAULT_TOLL;
     private int tickCounter = 0;
@@ -124,20 +126,64 @@ public class TollCameraBlockEntity extends BlockEntity implements Tickable {
             // "insufficient" message every half-second while the vehicle sits.
             this.recentlyCharged.put(uuid, now + COOLDOWN_TICKS);
 
-            if (RfcCurrency.tryCharge(player, this.tollAmount)) {
-                int balance = RfcCurrency.sumInventory(player);
-                player.sendMessage(new LiteralText(
-                    "§a[Toll] §f-" + this.tollAmount + " RFC  (balance: " + balance + ")"), true);
-                // Toll-booth confirmation beep — clean electronic blip, audible
-                // to anyone nearby (so passengers and bystanders hear the charge).
+            // Charge in two stages: plate balance first (Telepass-style), then
+            // the rider's coin inventory for any remainder. Refund the plate
+            // draw if the combined sources can't cover the full toll.
+            final int totalDue = this.tollAmount;
+            int remaining = totalDue;
+
+            String plate = null;
+            RfcAccountState state = null;
+            int drawnFromPlate = 0;
+            if (vehicle.hasCustomName() && this.world instanceof ServerWorld) {
+                plate = vehicle.getCustomName().getString();
+                state = RfcAccountState.get((ServerWorld) this.world);
+                drawnFromPlate = state.takeUpTo(plate, remaining);
+                remaining -= drawnFromPlate;
+            }
+
+            int drawnFromInv = 0;
+            if (remaining > 0 && RfcCurrency.tryCharge(player, remaining)) {
+                drawnFromInv = remaining;
+                remaining = 0;
+            }
+
+            if (remaining == 0) {
+                // Build a breakdown message showing which source paid.
+                StringBuilder msg = new StringBuilder("§a[Toll] §f-").append(totalDue).append(" RFC §7(");
+                if (drawnFromPlate > 0) {
+                    msg.append("plate ").append(plate).append(": -").append(drawnFromPlate);
+                    msg.append(", left ").append(state.getBalance(plate));
+                    if (drawnFromInv > 0) msg.append("; ");
+                }
+                if (drawnFromInv > 0) {
+                    msg.append("inv: -").append(drawnFromInv);
+                    msg.append(", left ").append(RfcCurrency.sumInventory(player));
+                }
+                msg.append(")");
+                player.sendMessage(new LiteralText(msg.toString()), false);
+                // "Ka-ching!" — vanilla XP-orb pickup sound, played at the
+                // player's exact position with PLAYERS category and full
+                // volume so it's reliably audible from inside the vehicle.
                 this.world.playSound(
-                    null, pos,
-                    SoundEvents.BLOCK_NOTE_BLOCK_BIT, SoundCategory.BLOCKS,
-                    0.6f, 1.6f);
+                    null,
+                    player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
+                    SoundCategory.PLAYERS,
+                    1.0f, 1.2f);
             } else {
-                int balance = RfcCurrency.sumInventory(player);
+                // Refund the plate draw — atomic semantics: either fully paid or untouched.
+                if (drawnFromPlate > 0 && state != null) {
+                    state.deposit(plate, drawnFromPlate);
+                }
+                int invBal = RfcCurrency.sumInventory(player);
+                int plateBal = (state != null) ? state.getBalance(plate) : 0;
+                String detail = (plate != null)
+                    ? "plate " + plate + ": " + plateBal + ", inv: " + invBal
+                    : "inv: " + invBal;
                 player.sendMessage(new LiteralText(
-                    "§c[Toll UNPAID] §fNeed " + this.tollAmount + " RFC, you have " + balance), true);
+                    "§c[Toll UNPAID] §fNeed " + totalDue + " RFC §7(" + detail + ")"
+                ), false);
             }
         }
     }
