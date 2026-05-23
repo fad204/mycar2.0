@@ -53,11 +53,7 @@ public class CarEntityRenderer extends EntityRenderer<CarEntity> {
         matrices.scale(-1.0F, -1.0F, 1.0F);
 
         Identifier tex = getTexture(entity);
-        // getEntityCutoutNoCull (instead of getEntityTranslucent): renders both
-        // sides of every polygon, so when another car shoves your camera inside
-        // its model during collision you still see its body instead of looking
-        // straight through. Matches what the bicycle model uses by default.
-        VertexConsumer vc = vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(tex));
+        VertexConsumer vc = vcp.getBuffer(RenderLayer.getEntityTranslucent(tex));
         this.model.render(matrices, vc, light, OverlayTexture.DEFAULT_UV, 1.0F, 1.0F, 1.0F, 1.0F);
 
         matrices.pop();
