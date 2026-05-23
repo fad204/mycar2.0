@@ -25,8 +25,8 @@ import java.util.UUID;
 
 /**
  * Ticking detection logic for {@link SpeedCameraBlock}. Scans every {@link
- * #DETECTION_INTERVAL_TICKS} ticks for vehicles in a 3×3×{@link #DETECTION_DEPTH}
- * box below; for each vehicle whose km/h exceeds {@link #speedLimitKmh},
+ * #DETECTION_INTERVAL_TICKS} ticks for vehicles in a {@link #DETECTION_WIDTH}×{@link
+ * #DETECTION_LENGTH}×{@link #DETECTION_DEPTH} box below; for each vehicle whose km/h exceeds {@link #speedLimitKmh},
  * issues a ticket (charges {@link #fineAmount} via the same plate→inventory→debt
  * pipeline as the toll camera) and plays a low buzzer.
  *
@@ -34,10 +34,21 @@ import java.util.UUID;
  */
 public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
 
-    private static final int DETECTION_INTERVAL_TICKS = 10;
-    private static final int DETECTION_DEPTH = 6;
-    private static final int DETECTION_HALF_WIDTH = 1;
+    /** Scan rate (server ticks between detection sweeps). At 1 tick (20 Hz),
+     *  even a vehicle at 200 km/h (2.78 b/t) gets sampled enough times to
+     *  measure a position delta. The scan is cheap (one entity query). */
+    private static final int DETECTION_INTERVAL_TICKS = 1;
+    /** Detection box dimensions: 10 wide × 10 long × 7 down, centered
+     *  horizontally on the camera block and extending downward from it. */
+    private static final double DETECTION_WIDTH  = 10.0;
+    private static final double DETECTION_LENGTH = 10.0;
+    private static final int    DETECTION_DEPTH  = 7;
     private static final int COOLDOWN_TICKS = 60;
+    /** Max age of a prior position sample to still count as "fresh enough"
+     *  for speed measurement. At 1-tick scans the typical age is 1; allow a
+     *  few missed ticks (5) but discard anything older — it means the vehicle
+     *  left and re-entered, and averaging across that gap gives wrong speed. */
+    private static final int MAX_PRIOR_AGE_TICKS = 5;
 
     /** Conversion: blocks per tick → km/h. (×20 ticks/sec, ×3.6 m/s→km/h.) */
     private static final double BLOCKS_PER_TICK_TO_KMH = 20.0 * 3.6;
@@ -46,6 +57,20 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
     private int fineAmount    = 0;
     private int tickCounter   = 0;
     private final Map<UUID, Long> recentlyTicketed = new HashMap<>();
+    /** Last-seen position for each vehicle, used to compute speed across
+     *  scans. Server-side {@code prevX}/{@code getX} delta is always 0 by
+     *  the time BEs tick (baseTick already ran), so we measure motion
+     *  ourselves over the interval between scans. Format: uuid → [x, z, tick]. */
+    private final Map<UUID, double[]> lastSeen = new HashMap<>();
+
+    /** Debug info — shown on right-click with empty hand. Lets the user verify
+     *  the camera is actually detecting vehicles (and at what speed) without
+     *  needing to drive them over the limit. */
+    private String lastDetectionSummary = null;
+    private long   lastDetectionTick    = 0;
+
+    public String getLastDetectionSummary() { return this.lastDetectionSummary; }
+    public long   getLastDetectionTick()    { return this.lastDetectionTick;    }
 
     public SpeedCameraBlockEntity() {
         super(MyCarMod.SPEED_CAMERA_BE);
@@ -102,30 +127,55 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
         while (it.hasNext()) {
             if (it.next().getValue() <= now) it.remove();
         }
+        // Sweep lastSeen entries that haven't been refreshed for a while
+        // (vehicles that left and didn't return).
+        this.lastSeen.entrySet().removeIf(e -> now - (long) e.getValue()[2] > 200);
 
         BlockPos pos = this.getPos();
+        double cx = pos.getX() + 0.5;  // horizontal center of camera block
+        double cz = pos.getZ() + 0.5;
         Box scan = new Box(
-            pos.getX() - DETECTION_HALF_WIDTH, pos.getY() - DETECTION_DEPTH, pos.getZ() - DETECTION_HALF_WIDTH,
-            pos.getX() + DETECTION_HALF_WIDTH + 1, pos.getY(), pos.getZ() + DETECTION_HALF_WIDTH + 1
+            cx - DETECTION_WIDTH  / 2.0, pos.getY() - DETECTION_DEPTH, cz - DETECTION_LENGTH / 2.0,
+            cx + DETECTION_WIDTH  / 2.0, pos.getY(),                   cz + DETECTION_LENGTH / 2.0
         );
         List<AbstractVehicleEntity> vehicles = this.world.getEntitiesByClass(
             AbstractVehicleEntity.class, scan, e -> true);
 
         for (AbstractVehicleEntity vehicle : vehicles) {
             UUID uuid = vehicle.getUuid();
-            if (this.recentlyTicketed.containsKey(uuid)) continue;
+            String name = vehicle.hasCustomName()
+                ? vehicle.getCustomName().getString()
+                : "(unnamed " + vehicle.getType().toString() + ")";
 
-            // Compute the vehicle's actual horizontal speed from this server
-            // tick's position delta. `currentSpeed` is updated client-side
-            // (the rider owns physics) so the server reads stale 0s; the
-            // position fields ARE synced, so prevX/prevZ → getX/getZ gives
-            // a reliable per-tick velocity that we convert to km/h, matching
-            // exactly what the vehicle HUD shows.
-            double dx = vehicle.getX() - vehicle.prevX;
-            double dz = vehicle.getZ() - vehicle.prevZ;
-            double bpt = Math.sqrt(dx * dx + dz * dz);
-            double kmh = bpt * BLOCKS_PER_TICK_TO_KMH;
-            if (kmh <= this.speedLimitKmh) continue;
+            // Record current position for this vehicle BEFORE we decide whether
+            // to ticket — that way the next scan has data to compute speed from
+            // even if this scan is the vehicle's first appearance.
+            double[] prior = this.lastSeen.get(uuid);
+            this.lastSeen.put(uuid, new double[]{ vehicle.getX(), vehicle.getZ(), now });
+
+            // Compute speed if we have prior data. We still want this even
+            // when below the limit / in cooldown, so the debug "last seen"
+            // readout reflects every detection.
+            double kmh = -1.0; // sentinel for "no measurement yet"
+            if (prior != null) {
+                long elapsed = now - (long) prior[2];
+                if (elapsed > 0 && elapsed <= MAX_PRIOR_AGE_TICKS) {
+                    double dx = vehicle.getX() - prior[0];
+                    double dz = vehicle.getZ() - prior[1];
+                    double bpt = Math.sqrt(dx * dx + dz * dz) / (double) elapsed;
+                    kmh = bpt * BLOCKS_PER_TICK_TO_KMH;
+                }
+            }
+
+            // Always update the debug readout (regardless of cooldown / limit).
+            this.lastDetectionSummary = (kmh >= 0)
+                ? name + " @ " + (int) Math.round(kmh) + " km/h"
+                : name + " (first sighting — speed pending)";
+            this.lastDetectionTick = now;
+
+            if (this.recentlyTicketed.containsKey(uuid)) continue;
+            if (kmh < 0) continue;                              // no measurement yet
+            if (kmh <= this.speedLimitKmh) continue;            // under limit
 
             Entity primary = vehicle.getPrimaryPassenger();
             if (!(primary instanceof PlayerEntity)) continue;
