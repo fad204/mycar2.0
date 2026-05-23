@@ -10,6 +10,7 @@ import net.minecraft.client.render.entity.EntityRenderDispatcher;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3f;
 
@@ -61,9 +62,12 @@ public class BicycleEntityRenderer extends EntityRenderer<BicycleEntity> {
     @Override
     protected void renderLabelIfPresent(BicycleEntity entity, Text text, MatrixStack matrices,
                                         VertexConsumerProvider vcp, int light) {
+        Text displayed = entity.hasDebt()
+            ? text.shallowCopy().formatted(Formatting.RED, Formatting.BOLD)
+            : text;
         matrices.push();
         matrices.translate(0.0D, LABEL_LIFT, 0.0D);
-        super.renderLabelIfPresent(entity, text, matrices, vcp, light);
+        super.renderLabelIfPresent(entity, displayed, matrices, vcp, light);
         matrices.pop();
     }
 }
