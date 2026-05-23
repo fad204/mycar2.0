@@ -7,6 +7,8 @@ import net.fabricmc.fabric.api.object.builder.v1.block.FabricBlockSettings;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
 import net.mycar.block.TollCameraBlock;
 import net.mycar.block.TollCameraBlockEntity;
+import net.mycar.block.SpeedCameraBlock;
+import net.mycar.block.SpeedCameraBlockEntity;
 import net.mycar.entity.AbstractVehicleEntity;
 import net.mycar.entity.BicycleEntity;
 import net.mycar.entity.CarEntity;
@@ -15,6 +17,7 @@ import net.mycar.item.BicycleItem;
 import net.mycar.item.CarItem;
 import net.mycar.item.FuelCanItem;
 import net.mycar.item.RfcCoinItem;
+import net.mycar.item.RfcRegistryItem;
 import net.mycar.item.TruckItem;
 import net.mycar.network.Networking;
 import net.minecraft.block.Block;
@@ -75,6 +78,23 @@ public class MyCarMod implements ModInitializer {
 
     public static final BlockEntityType<TollCameraBlockEntity> TOLL_CAMERA_BE =
         BlockEntityType.Builder.create(TollCameraBlockEntity::new, TOLL_CAMERA).build(null);
+
+    // ---------------- Speed camera block ----------------
+    public static final Block SPEED_CAMERA = new SpeedCameraBlock(
+        FabricBlockSettings.of(Material.METAL).strength(3.0f, 6.0f).requiresTool().nonOpaque()
+    );
+
+    public static final BlockItem SPEED_CAMERA_ITEM = new BlockItem(
+        SPEED_CAMERA, new FabricItemSettings().group(ItemGroup.REDSTONE)
+    );
+
+    public static final BlockEntityType<SpeedCameraBlockEntity> SPEED_CAMERA_BE =
+        BlockEntityType.Builder.create(SpeedCameraBlockEntity::new, SPEED_CAMERA).build(null);
+
+    // ---------------- RFC Registry book ----------------
+    public static final RfcRegistryItem RFC_REGISTRY = new RfcRegistryItem(
+        new FabricItemSettings().group(ItemGroup.MISC).maxCount(1)
+    );
 
     // ---------------- Entity types ----------------
     public static final EntityType<CarEntity> CAR = Registry.register(
@@ -138,6 +158,14 @@ public class MyCarMod implements ModInitializer {
         Registry.register(Registry.BLOCK, id("toll_camera"), TOLL_CAMERA);
         Registry.register(Registry.ITEM,  id("toll_camera"), TOLL_CAMERA_ITEM);
         Registry.register(Registry.BLOCK_ENTITY_TYPE, id("toll_camera"), TOLL_CAMERA_BE);
+
+        // Speed camera block + item + BE type
+        Registry.register(Registry.BLOCK, id("speed_camera"), SPEED_CAMERA);
+        Registry.register(Registry.ITEM,  id("speed_camera"), SPEED_CAMERA_ITEM);
+        Registry.register(Registry.BLOCK_ENTITY_TYPE, id("speed_camera"), SPEED_CAMERA_BE);
+
+        // RFC registry book
+        Registry.register(Registry.ITEM, id("rfc_registry"), RFC_REGISTRY);
 
         // Network handlers (shared between car and truck)
         ServerPlayNetworking.registerGlobalReceiver(Networking.SHIFT_GEAR, Networking::handleShiftGear);
