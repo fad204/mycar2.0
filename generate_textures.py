@@ -20,6 +20,8 @@ ROOT     = pathlib.Path(__file__).resolve().parent
 RES_DIR  = ROOT / "src/main/resources"
 TEX_DIR  = RES_DIR / "assets/mycar/textures"
 MODEL_DIR= RES_DIR / "assets/mycar/models/item"
+BLOCK_MODEL_DIR = RES_DIR / "assets/mycar/models/block"
+BLOCKSTATE_DIR  = RES_DIR / "assets/mycar/blockstates"
 LANG_DIR = RES_DIR / "assets/mycar/lang"
 RECIPE_DIR = RES_DIR / "data/mycar/recipes"
 
@@ -869,11 +871,204 @@ def generate_lang():
     obj["key.mycar.gear_down"]      = "Shift Gear Down"
     obj["key.mycar.handbrake"]      = "Handbrake"
     obj["category.mycar.driving"]   = "MyCar: Driving"
+    add_toll_lang_entries(obj)
     write_json(LANG_DIR / "en_us.json", obj)
 
 # =============================================================
 # Main
 # =============================================================
+# =============================================================
+# Toll system: RFC coins + toll camera block
+# =============================================================
+COIN_PALETTES = {
+    5: {
+        "face":  (188, 188, 198, 255),  # iron nugget — pale silver
+        "edge":  (118, 118, 128, 255),
+        "shine": (225, 225, 235, 255),
+    },
+    10: {
+        "face":  (210, 215, 220, 255),  # iron ingot — brighter silver
+        "edge":  (130, 132, 140, 255),
+        "shine": (240, 245, 250, 255),
+    },
+    50: {
+        "face":  (230, 195, 105, 255),  # gold nugget — pale gold
+        "edge":  (160, 130, 55, 255),
+        "shine": (250, 230, 165, 255),
+    },
+    100: {
+        "face":  (250, 215, 80, 255),   # gold ingot — bright gold
+        "edge":  (175, 135, 35, 255),
+        "shine": (255, 240, 145, 255),
+    },
+    500: {
+        "face":  (85, 200, 110, 255),   # emerald — green
+        "edge":  (40, 125, 70, 255),
+        "shine": (155, 240, 175, 255),
+    },
+    1000: {
+        "face":  (135, 230, 240, 255),  # diamond — cyan
+        "edge":  (55, 145, 175, 255),
+        "shine": (200, 250, 255, 255),
+    },
+}
+
+def make_coin_icon(denom, palette, out_path):
+    """Render a single 16x16 coin icon: edge ring, filled face, top-left shine pixel."""
+    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    # Outer ring (the "edge" of the coin)
+    d.ellipse([1, 1, 14, 14], fill=palette["edge"])
+    # Inner face
+    d.ellipse([3, 3, 12, 12], fill=palette["face"])
+    # Shine highlight (small bright spot in upper-left, sells the round look)
+    d.ellipse([4, 4, 7, 7], fill=palette["shine"])
+    # Two pixels of darker rim to give depth on bottom-right
+    img.putpixel((11, 11), palette["edge"])
+    img.putpixel((12, 10), palette["edge"])
+    img.putpixel((10, 12), palette["edge"])
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+def make_toll_camera_lens(out_path):
+    """The downward-facing camera lens — concentric circles with a red 'active' dot."""
+    img = Image.new("RGBA", (16, 16), (55, 58, 65, 255))   # dark casing
+    d = ImageDraw.Draw(img)
+    # Frame border
+    d.rectangle([0, 0, 15, 15], outline=(35, 38, 45, 255))
+    # Lens housing (large dark circle)
+    d.ellipse([2, 2, 13, 13], fill=(25, 27, 32, 255), outline=(15, 16, 20, 255))
+    # Lens glass (inner)
+    d.ellipse([5, 5, 10, 10], fill=(18, 20, 26, 255))
+    # Pupil reflection / shine
+    img.putpixel((6, 6), (140, 150, 175, 255))
+    img.putpixel((7, 6), (90, 100, 130, 255))
+    # Active-light LED (small red dot in corner)
+    img.putpixel((2, 13), (220, 30, 30, 255))
+    img.putpixel((3, 13), (180, 25, 25, 255))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+def make_toll_camera_side(out_path):
+    """Side face — gray casing with mounting bands top and bottom."""
+    img = Image.new("RGBA", (16, 16), (95, 100, 108, 255))
+    d = ImageDraw.Draw(img)
+    # Top + bottom darker bands (mounting brackets)
+    d.rectangle([0, 0, 15, 2], fill=(70, 74, 82, 255))
+    d.rectangle([0, 13, 15, 15], fill=(70, 74, 82, 255))
+    # Side rivets
+    for x in (2, 13):
+        img.putpixel((x, 1), (40, 42, 48, 255))
+        img.putpixel((x, 14), (40, 42, 48, 255))
+    # Vertical seam down the middle
+    for y in range(3, 13):
+        img.putpixel((7, y), (75, 80, 86, 255))
+        img.putpixel((8, y), (115, 120, 128, 255))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+def make_toll_camera_top(out_path):
+    """Top face — mounting plate (this is what touches the ceiling block above)."""
+    img = Image.new("RGBA", (16, 16), (115, 120, 128, 255))
+    d = ImageDraw.Draw(img)
+    # Border
+    d.rectangle([0, 0, 15, 15], outline=(75, 80, 88, 255))
+    # Four corner mounting screws
+    for x, y in [(2, 2), (13, 2), (2, 13), (13, 13)]:
+        img.putpixel((x, y), (40, 42, 48, 255))
+        img.putpixel((x + 1, y), (60, 64, 72, 255))
+        img.putpixel((x, y + 1), (60, 64, 72, 255))
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+
+# RFC: coin item ↔ vanilla item used to craft it (1:1 in both directions).
+COIN_VANILLA_SOURCE = {
+    5:    "iron_nugget",
+    10:   "iron_ingot",
+    50:   "gold_nugget",
+    100:  "gold_ingot",
+    500:  "emerald",
+    1000: "diamond",
+}
+
+def generate_toll_assets():
+    """Textures, models, blockstate, recipes, and lang entries for the toll system."""
+
+    # ---- Coin textures + item models + 1:1 recipes both directions ----
+    for denom, palette in COIN_PALETTES.items():
+        coin_id   = f"rfc_{denom}"
+        coin_path = TEX_DIR / f"item/{coin_id}.png"
+        make_coin_icon(denom, palette, coin_path)
+
+        # Item model — standard "generated" 2D icon
+        write_json(MODEL_DIR / f"{coin_id}.json", {
+            "parent": "item/generated",
+            "textures": {"layer0": f"mycar:item/{coin_id}"},
+        })
+
+        # Recipe: 1 vanilla source → 1 coin
+        vanilla = COIN_VANILLA_SOURCE[denom]
+        write_json(RECIPE_DIR / f"{coin_id}.json", {
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": [{"item": f"minecraft:{vanilla}"}],
+            "result": {"item": f"mycar:{coin_id}", "count": 1},
+        })
+
+        # Reverse recipe: 1 coin → 1 vanilla source (refund / melt)
+        write_json(RECIPE_DIR / f"{coin_id}_to_{vanilla}.json", {
+            "type": "minecraft:crafting_shapeless",
+            "ingredients": [{"item": f"mycar:{coin_id}"}],
+            "result": {"item": f"minecraft:{vanilla}", "count": 1},
+        })
+
+    # ---- Toll camera block textures ----
+    make_toll_camera_lens(TEX_DIR / "block/toll_camera_lens.png")
+    make_toll_camera_side(TEX_DIR / "block/toll_camera_side.png")
+    make_toll_camera_top (TEX_DIR / "block/toll_camera_top.png")
+
+    # ---- Block model: per-face textures, lens on the bottom ----
+    write_json(BLOCK_MODEL_DIR / "toll_camera.json", {
+        "parent": "block/cube",
+        "textures": {
+            "particle": "mycar:block/toll_camera_side",
+            "down":     "mycar:block/toll_camera_lens",
+            "up":       "mycar:block/toll_camera_top",
+            "north":    "mycar:block/toll_camera_side",
+            "south":    "mycar:block/toll_camera_side",
+            "east":     "mycar:block/toll_camera_side",
+            "west":     "mycar:block/toll_camera_side",
+        },
+    })
+
+    # ---- Blockstate: single variant, no rotation (for now). ----
+    write_json(BLOCKSTATE_DIR / "toll_camera.json", {
+        "variants": {"": {"model": "mycar:block/toll_camera"}},
+    })
+
+    # ---- Item form of the block (uses the block model) ----
+    write_json(MODEL_DIR / "toll_camera.json", {
+        "parent": "mycar:block/toll_camera",
+    })
+
+    # ---- Toll camera recipe ----
+    # 7 iron + 1 observer + 1 redstone — mid-tier infrastructure cost.
+    write_json(RECIPE_DIR / "toll_camera.json", {
+        "type": "minecraft:crafting_shaped",
+        "pattern": ["III", "IOI", "IRI"],
+        "key": {
+            "I": {"item": "minecraft:iron_ingot"},
+            "O": {"item": "minecraft:observer"},
+            "R": {"item": "minecraft:redstone"},
+        },
+        "result": {"item": "mycar:toll_camera", "count": 1},
+    })
+
+def add_toll_lang_entries(obj):
+    """Mutate the lang dict to include toll-system entries."""
+    for denom in COIN_PALETTES:
+        obj[f"item.mycar.rfc_{denom}"] = f"RFC {denom} Coin"
+    obj["block.mycar.toll_camera"] = "Toll Camera"
+
 if __name__ == "__main__":
     print("Generating textures and assets...\n")
 
@@ -913,5 +1108,8 @@ if __name__ == "__main__":
     generate_recipes()
     generate_lang()
     print("Item models, recipes, lang written.")
+
+    generate_toll_assets()
+    print("Toll system assets (coins + camera block) written.")
 
     print("\nDone.")
