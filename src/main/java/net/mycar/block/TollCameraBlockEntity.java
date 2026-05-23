@@ -126,9 +126,11 @@ public class TollCameraBlockEntity extends BlockEntity implements Tickable {
             // "insufficient" message every half-second while the vehicle sits.
             this.recentlyCharged.put(uuid, now + COOLDOWN_TICKS);
 
-            // Charge in two stages: plate balance first (Telepass-style), then
-            // the rider's coin inventory for any remainder. Refund the plate
-            // draw if the combined sources can't cover the full toll.
+            // Charge in three stages:
+            //   1. Plate balance (Telepass-style prepaid account)
+            //   2. Rider's coin inventory (any remainder)
+            //   3. Plate debt — anything still unpaid is added to the plate's
+            //      outstanding debt, triggering the red-plate visualization.
             final int totalDue = this.tollAmount;
             int remaining = totalDue;
 
@@ -138,7 +140,7 @@ public class TollCameraBlockEntity extends BlockEntity implements Tickable {
             if (vehicle.hasCustomName() && this.world instanceof ServerWorld) {
                 plate = vehicle.getCustomName().getString();
                 state = RfcAccountState.get((ServerWorld) this.world);
-                drawnFromPlate = state.takeUpTo(plate, remaining);
+                drawnFromPlate = state.takeUpToBalance(plate, remaining);
                 remaining -= drawnFromPlate;
             }
 
@@ -148,43 +150,50 @@ public class TollCameraBlockEntity extends BlockEntity implements Tickable {
                 remaining = 0;
             }
 
-            if (remaining == 0) {
-                // Build a breakdown message showing which source paid.
-                StringBuilder msg = new StringBuilder("§a[Toll] §f-").append(totalDue).append(" RFC §7(");
-                if (drawnFromPlate > 0) {
-                    msg.append("plate ").append(plate).append(": -").append(drawnFromPlate);
-                    msg.append(", left ").append(state.getBalance(plate));
-                    if (drawnFromInv > 0) msg.append("; ");
-                }
-                if (drawnFromInv > 0) {
-                    msg.append("inv: -").append(drawnFromInv);
-                    msg.append(", left ").append(RfcCurrency.sumInventory(player));
-                }
-                msg.append(")");
-                player.sendMessage(new LiteralText(msg.toString()), false);
-                // "Ka-ching!" — vanilla XP-orb pickup sound, played at the
-                // player's exact position with PLAYERS category and full
-                // volume so it's reliably audible from inside the vehicle.
-                this.world.playSound(
-                    null,
-                    player.getX(), player.getY(), player.getZ(),
-                    SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
-                    SoundCategory.PLAYERS,
-                    1.0f, 1.2f);
-            } else {
-                // Refund the plate draw — atomic semantics: either fully paid or untouched.
-                if (drawnFromPlate > 0 && state != null) {
-                    state.deposit(plate, drawnFromPlate);
-                }
-                int invBal = RfcCurrency.sumInventory(player);
-                int plateBal = (state != null) ? state.getBalance(plate) : 0;
-                String detail = (plate != null)
-                    ? "plate " + plate + ": " + plateBal + ", inv: " + invBal
-                    : "inv: " + invBal;
-                player.sendMessage(new LiteralText(
-                    "§c[Toll UNPAID] §fNeed " + totalDue + " RFC §7(" + detail + ")"
-                ), false);
+            int addedToDebt = 0;
+            if (remaining > 0 && state != null) {
+                addedToDebt = remaining;
+                state.addDebt(plate, addedToDebt);
+                remaining = 0;
             }
+
+            // Build a breakdown showing which sources paid (and what got owed).
+            StringBuilder msg = new StringBuilder();
+            if (addedToDebt > 0) {
+                msg.append("§c[Toll UNPAID] §f-").append(totalDue).append(" RFC §7(");
+            } else {
+                msg.append("§a[Toll] §f-").append(totalDue).append(" RFC §7(");
+            }
+            boolean firstField = true;
+            if (drawnFromPlate > 0) {
+                msg.append("plate ").append(plate).append(": -").append(drawnFromPlate);
+                msg.append(", left ").append(state.getBalance(plate));
+                firstField = false;
+            }
+            if (drawnFromInv > 0) {
+                if (!firstField) msg.append("; ");
+                msg.append("inv: -").append(drawnFromInv);
+                msg.append(", left ").append(RfcCurrency.sumInventory(player));
+                firstField = false;
+            }
+            if (addedToDebt > 0) {
+                if (!firstField) msg.append("; ");
+                msg.append("§cdebt +").append(addedToDebt);
+                msg.append(", §ctotal ").append(state.getDebt(plate));
+                msg.append("§7");
+            }
+            msg.append(")");
+            player.sendMessage(new LiteralText(msg.toString()), false);
+
+            // "Ka-ching!" on success, low buzzer on debt.
+            this.world.playSound(
+                null,
+                player.getX(), player.getY(), player.getZ(),
+                addedToDebt > 0 ? SoundEvents.BLOCK_NOTE_BLOCK_BASS
+                                : SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
+                SoundCategory.PLAYERS,
+                1.0f,
+                addedToDebt > 0 ? 0.6f : 1.2f);
         }
     }
 }
