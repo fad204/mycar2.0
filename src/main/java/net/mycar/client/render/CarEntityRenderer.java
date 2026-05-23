@@ -10,10 +10,16 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRenderDispatcher;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3f;
 
 public class CarEntityRenderer extends EntityRenderer<CarEntity> {
+    /** Extra vertical lift for the plate label so it sits above the cabin roof
+     *  instead of inside it. Car roof in world coords reaches y ≈ 2.4 while
+     *  the default label sits at y = 2.0; +0.8 puts it cleanly above. */
+    private static final double LABEL_LIFT = 0.8;
+
     private static final Identifier[] TEXTURES;
     static {
         TEXTURES = new Identifier[AbstractVehicleEntity.NUM_VARIANTS];
@@ -51,5 +57,17 @@ public class CarEntityRenderer extends EntityRenderer<CarEntity> {
 
         matrices.pop();
         super.render(entity, yaw, tickDelta, matrices, vcp, light);
+    }
+
+    @Override
+    protected void renderLabelIfPresent(CarEntity entity, Text text, MatrixStack matrices,
+                                        VertexConsumerProvider vcp, int light) {
+        // Push the label-rendering coordinate frame up by LABEL_LIFT before
+        // delegating to the vanilla billboard label rendering, so the plate
+        // floats above the roof rather than inside the cabin.
+        matrices.push();
+        matrices.translate(0.0D, LABEL_LIFT, 0.0D);
+        super.renderLabelIfPresent(entity, text, matrices, vcp, light);
+        matrices.pop();
     }
 }
