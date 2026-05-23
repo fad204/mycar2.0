@@ -1,6 +1,15 @@
 package net.mycar.item;
 
+import net.minecraft.client.item.TooltipContext;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
+import net.minecraft.world.World;
+
+import java.util.List;
+
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A coin item denominated in RFC, the currency used by toll cameras.
@@ -28,5 +37,13 @@ public class RfcCoinItem extends Item {
 
     public int getDenomination() {
         return this.denomination;
+    }
+
+    @Override
+    public void appendTooltip(ItemStack stack, @Nullable World world,
+                              List<Text> tooltip, TooltipContext context) {
+        // Gold-on-gray hover line clarifying the denomination, since the
+        // 16x16 icon has limited room for the full numeric value.
+        tooltip.add(new LiteralText("§7Value: §6" + this.denomination + " RFC"));
     }
 }
