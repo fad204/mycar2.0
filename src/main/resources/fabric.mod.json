@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "mycar",
+  "version": "${version}",
+  "name": "MyCar",
+  "description": "A simple fuel-based driveable car for Fabric 1.16.5.",
+  "authors": ["You"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["net.mycar.MyCarMod"],
+    "client": ["net.mycar.client.MyCarClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.11.0",
+    "fabric": "*",
+    "minecraft": "1.16.x",
+    "java": ">=8"
+  }
+}
