@@ -11,6 +11,7 @@ import net.minecraft.client.render.entity.EntityRenderDispatcher;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3f;
 
@@ -52,7 +53,11 @@ public class CarEntityRenderer extends EntityRenderer<CarEntity> {
         matrices.scale(-1.0F, -1.0F, 1.0F);
 
         Identifier tex = getTexture(entity);
-        VertexConsumer vc = vcp.getBuffer(RenderLayer.getEntityTranslucent(tex));
+        // getEntityCutoutNoCull (instead of getEntityTranslucent): renders both
+        // sides of every polygon, so when another car shoves your camera inside
+        // its model during collision you still see its body instead of looking
+        // straight through. Matches what the bicycle model uses by default.
+        VertexConsumer vc = vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(tex));
         this.model.render(matrices, vc, light, OverlayTexture.DEFAULT_UV, 1.0F, 1.0F, 1.0F, 1.0F);
 
         matrices.pop();
@@ -62,12 +67,18 @@ public class CarEntityRenderer extends EntityRenderer<CarEntity> {
     @Override
     protected void renderLabelIfPresent(CarEntity entity, Text text, MatrixStack matrices,
                                         VertexConsumerProvider vcp, int light) {
+        // Color the plate text red+bold whenever this vehicle has outstanding
+        // toll/speed-camera debt. The flag is the synced HAS_DEBT data tracker,
+        // refreshed once per second on the server from RfcAccountState.
+        Text displayed = entity.hasDebt()
+            ? text.shallowCopy().formatted(Formatting.RED, Formatting.BOLD)
+            : text;
         // Push the label-rendering coordinate frame up by LABEL_LIFT before
         // delegating to the vanilla billboard label rendering, so the plate
         // floats above the roof rather than inside the cabin.
         matrices.push();
         matrices.translate(0.0D, LABEL_LIFT, 0.0D);
-        super.renderLabelIfPresent(entity, text, matrices, vcp, light);
+        super.renderLabelIfPresent(entity, displayed, matrices, vcp, light);
         matrices.pop();
     }
 }
