@@ -26,7 +26,7 @@ public class CarEntity extends AbstractVehicleEntity {
     @Override protected double[]   getGearTopSpeeds()        { return GEAR_TOP_SPEED; }
     @Override protected int        getMaxFuel()              { return 1000; }
     @Override protected double     getAcceleration()         { return 0.04; }
-    @Override protected double     getBrakeStrength()        { return 0.10; }
+    @Override protected double     getBrakeStrength()        { return 0.07; }
     @Override protected double     getFriction()             { return 0.015; }
     @Override protected double     getReverseFraction()      { return 0.35; }
     @Override protected float      getMaxTurnRate()          { return 4.0f; }
