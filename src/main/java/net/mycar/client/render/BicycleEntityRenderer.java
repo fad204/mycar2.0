@@ -9,10 +9,15 @@ import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRenderDispatcher;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3f;
 
 public class BicycleEntityRenderer extends EntityRenderer<BicycleEntity> {
+    /** Lift the plate label above the rider's head. Default label sits at
+     *  y = 2.0 which is around the rider's chest; +0.8 puts it above their hat. */
+    private static final double LABEL_LIFT = 0.8;
+
     private static final Identifier[] TEXTURES;
     static {
         TEXTURES = new Identifier[AbstractVehicleEntity.NUM_VARIANTS];
@@ -51,5 +56,14 @@ public class BicycleEntityRenderer extends EntityRenderer<BicycleEntity> {
 
         matrices.pop();
         super.render(entity, yaw, tickDelta, matrices, vcp, light);
+    }
+
+    @Override
+    protected void renderLabelIfPresent(BicycleEntity entity, Text text, MatrixStack matrices,
+                                        VertexConsumerProvider vcp, int light) {
+        matrices.push();
+        matrices.translate(0.0D, LABEL_LIFT, 0.0D);
+        super.renderLabelIfPresent(entity, text, matrices, vcp, light);
+        matrices.pop();
     }
 }
