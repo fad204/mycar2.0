@@ -419,7 +419,30 @@ def paint_truck(img, p):
         "south": {"base": p["body_dark"], "dark": CHASSIS_BOT, "light": p["body"], "grain_color": grain},
     })
 
-    # Cab (28 x 24 x 32) at (0, 112) — taller cab
+    # Body front face GRILLE: paint horizontal slats on the body's north face
+    # (which is where the headlights protrude from). Body north face is at
+    # (96, 96)-(128, 112), size 32x16. The grille reads as dark slats with the
+    # headlights as bright accents on either side.
+    GRILLE_BASE = (35, 35, 38, 255)
+    GRILLE_SLAT = (15, 15, 18, 255)
+    d.rectangle([96, 97, 127, 111], fill=GRILLE_BASE)
+    for slat_y in (99, 101, 103, 105, 107, 109):
+        d.line([(97, slat_y), (126, slat_y)], fill=GRILLE_SLAT)
+    # Small center badge between slats.
+    d.rectangle([110, 102, 113, 106], fill=p.get("body_light", (220, 220, 220, 255)))
+
+    # Body Extension (32 x 16 x 24) at (104, 260) — extends chassis to match cargoExt
+    paint_cuboid(d, 104, 260, 32, 16, 24, {
+        "top":   body_cfg(p, grain=grain),
+        "bot":   {"base": CHASSIS_BOT, "highlight": False, "shadow": False},
+        "west":  body_cfg(p, grain=grain),
+        "north": {"base": p["body_dark"], "dark": CHASSIS_BOT, "light": p["body"], "grain_color": grain},  # hidden against body
+        "east":  body_cfg(p, grain=grain),
+        "south": {"base": p["body_dark"], "dark": CHASSIS_BOT, "light": p["body"], "grain_color": grain},  # rear of chassis
+    })
+
+    # Cab (28 x 24 x 32) at (0, 112) — windshield is the entire cab front face
+    # now (no grille split). The grille moved to the body north face above.
     paint_cuboid(d, 0, 112, 28, 24, 32, {
         "top":   roof_cfg(p, grain=grain),
         "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
@@ -429,17 +452,10 @@ def paint_truck(img, p):
         "south": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # back-of-cab panel
     })
 
-    # Cab front face windshield/grille split: the cab's north face was just
-    # painted entirely as windshield, but a real truck has windshield only
-    # in the upper portion. Repaint the lower 8 rows (v=160-167) as body
-    # color so the windshield doesn't reach down to where the grille box
-    # (cabFront cuboid) sits. Cab north face is at (32, 144), size 28x24.
-    d.rectangle([32, 160, 59, 167], fill=p["body"])
-    # Add a horizontal trim line between windshield and body to soften the seam.
-    d.line([(32, 159), (59, 159)], fill=p["body_dark"])
-
-    # Cargo box (28 x 26 x 56) at (0, 172) — taller cargo, extends above cab roof
-    paint_cuboid(d, 0, 172, 28, 26, 56, {
+    # Cargo box (28 x 32 x 56) at (0, 172) — TALLER cargo (32 vs 24 cab), so
+    # the cargo box sits 0.5 blocks above the cab roof. Real Italian trucks
+    # have cargo taller than cab.
+    paint_cuboid(d, 0, 172, 28, 32, 56, {
         "top":   roof_cfg(p, grain=grain),
         "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
         "west":  body_cfg(p, grain=grain, panel_lines=3),
@@ -448,16 +464,16 @@ def paint_truck(img, p):
         "south": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # hidden against cargoExt
     })
 
-    # Cargo extension (28 x 26 x 24) at (0, 254) — extends the truck 1.5 blocks.
-    # Same colors as cargo so they read as one continuous box.
-    paint_cuboid(d, 0, 254, 28, 26, 24, {
+    # Cargo extension (28 x 32 x 24) at (0, 260) — same dimensions as cargo in
+    # X/Y. UV moved from v=254 to v=260 because cargo is now 32 tall.
+    paint_cuboid(d, 0, 260, 28, 32, 24, {
         "top":   roof_cfg(p, grain=grain),
         "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
         "west":  body_cfg(p, grain=grain, panel_lines=1),
         "north": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # hidden against cargo
         "east":  body_cfg(p, grain=grain, panel_lines=1),
         "south": {"base": p["body"], "dark": p["body_dark"], "light": p["body_light"],
-                  "grain_color": grain, "panel_lines": 1},  # rear doors (NEW back of truck)
+                  "grain_color": grain, "panel_lines": 1},  # rear doors (back of truck)
     })
 
     # Front bumper (32 x 4 x 2) at (168, 184) — moved from v=172 to make room for bigger wheels
@@ -505,31 +521,10 @@ def paint_truck(img, p):
             "south": {"base": p["body"], "highlight": False, "shadow": False},
         })
 
-    # Cab Front grille box (28x6x2) at (168, 207) — small protrusion at the
-    # bottom of the cab front face. Painted as a dark grille with horizontal
-    # slats + a small badge. The north face is what you see head-on.
-    GRILLE_BASE = (35, 35, 38, 255)
-    GRILLE_SLAT = (15, 15, 18, 255)
-    GRILLE_BADGE = p.get("body_light", (220, 220, 220, 255))
-    paint_cuboid(d, 168, 207, 28, 6, 2, {
-        "top":   {"base": p["body_dark"], "highlight": False, "shadow": False},
-        "bot":   {"base": GRILLE_BASE, "highlight": False, "shadow": False},
-        "west":  {"base": GRILLE_BASE, "highlight": False, "shadow": False},
-        "north": {"base": GRILLE_BASE, "highlight": False, "shadow": False},
-        "east":  {"base": GRILLE_BASE, "highlight": False, "shadow": False},
-        "south": {"base": p["body_dark"], "highlight": False, "shadow": False},  # back is against cab, won't be seen
-    })
-    # Horizontal slats on the north (front-facing) face. The grille box's north
-    # face is at (168+2, 207+2) = (170, 209), size 28x6.
-    gnx, gny = 170, 209
-    for slat_y in (gny + 1, gny + 3, gny + 5):
-        d.line([(gnx, slat_y), (gnx + 27, slat_y)], fill=GRILLE_SLAT)
-    # Small centered badge.
-    d.rectangle([gnx + 12, gny + 2, gnx + 15, gny + 4], fill=GRILLE_BADGE)
-
-    # 4 Wheels (5 x 16 x 20) — bigger tires
-    # FL at (120,112), FR at (170,112), RL at (120,148), RR at (170,148)
-    for (uw, vw) in ((120, 112), (170, 112), (120, 148), (170, 148)):
+    # 6 Wheels (5 x 16 x 20) — dual rear axle for delivery-truck look. FL/FR
+    # at front, RL/RR at first rear axle, RRL/RRR at second rear axle.
+    for (uw, vw) in ((120, 112), (170, 112), (120, 148), (170, 148),
+                     (104, 316), (154, 316)):
         paint_cuboid(d, uw, vw, 5, 16, 20, {
             "top":   {"base": WHEEL, "highlight": False, "shadow": False},
             "bot":   {"base": WHEEL, "highlight": False, "shadow": False},
@@ -651,7 +646,11 @@ def paint_truck_emergency_decals(d, p):
     # cargoExt extends behind cargo. cargoExt south face (28x26) is at
     # (u + 2*sz + sx, v + sz) = (0 + 48 + 28, 254 + 24) = (76, 278).
     # 16-wide sunflower centered: u = 76 + (28-16)/2 = 82, v = 278 + (26-16)/2 = 283.
-    draw_sunflower(d, 82, 283)
+    # Sunflower decal on the BACK of truck — cargoExt's south face. Since cargo
+    # is now 32 tall (was 26), cargoExt UV moved from v=254 to v=260. CargoExt
+    # south face is at (76, 284), size 28x32. 16-wide sunflower centered:
+    # u = 76 + (28-16)/2 = 82, v = 284 + (32-16)/2 = 292.
+    draw_sunflower(d, 82, 292)
 
 # =============================================================
 # Bicycle entity texture (128x64) — uses BicycleEntityModel UV layout
@@ -1378,7 +1377,7 @@ if __name__ == "__main__":
         car_img.save(car_path)
         print(f"  car      {variant:14}  -> {car_path.relative_to(ROOT)}")
 
-        truck_img = Image.new("RGBA", (256, 320), (0, 0, 0, 0))
+        truck_img = Image.new("RGBA", (256, 384), (0, 0, 0, 0))
         paint_truck(truck_img, p)
         truck_path = TEX_DIR / f"entity/truck_{variant}.png"
         truck_path.parent.mkdir(parents=True, exist_ok=True)
