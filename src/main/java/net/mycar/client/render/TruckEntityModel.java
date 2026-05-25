@@ -33,13 +33,13 @@ import net.minecraft.client.util.math.MatrixStack;
 public class TruckEntityModel extends EntityModel<TruckEntity> {
 
     public static final int TEX_W = 256;
-    public static final int TEX_H = 320;
+    public static final int TEX_H = 384;
 
     public final ModelPart body;
+    public final ModelPart bodyExt;
     public final ModelPart cab;
     public final ModelPart cargo;
     public final ModelPart cargoExt;
-    public final ModelPart cabFront;
     public final ModelPart frontBumper;
     public final ModelPart rearBumper;
     public final ModelPart headlightL;
@@ -52,6 +52,8 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
     public final ModelPart wheelFR;
     public final ModelPart wheelRL;
     public final ModelPart wheelRR;
+    public final ModelPart wheelRRL;
+    public final ModelPart wheelRRR;
 
     public TruckEntityModel() {
         this.textureWidth = TEX_W;
@@ -62,32 +64,31 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.body.addCuboid(-16f, 0f, -48f, 32f, 16f, 96f);
         this.body.setPivot(0f, 0f, 0f);
 
+        // ----- Body Extension (32 x 16 x 24) at the rear — extends chassis
+        // out to match where cargoExt ends, so the cargo doesn't hang off
+        // the back of the truck. -----
+        this.bodyExt = new ModelPart(this, 104, 260);
+        this.bodyExt.addCuboid(-16f, 0f, 48f, 32f, 16f, 24f);
+        this.bodyExt.setPivot(0f, 0f, 0f);
+
         // ----- Cab (28 x 24 x 32) at front — taller cab to match real truck
         // proportions (was 28x16x32). Roof now at world Y ≈ 3.25. -----
         this.cab = new ModelPart(this, 0, 112);
         this.cab.addCuboid(-14f, -24f, -46f, 28f, 24f, 32f);
         this.cab.setPivot(0f, 0f, 0f);
 
-        // ----- Cargo Box (28 x 26 x 56) behind cab — slightly taller than the
-        // cab so the closed cargo box extends just above the cab roof, the way
-        // a real Italian delivery truck looks (was 28x16x56). -----
+        // ----- Cargo Box (28 x 32 x 56) behind cab — TALLER than cab now
+        // (32 vs 24) so the closed cargo box sits 0.5 blocks above the cab
+        // roof. Real Italian delivery trucks have cargo taller than cab. -----
         this.cargo = new ModelPart(this, 0, 172);
-        this.cargo.addCuboid(-14f, -26f, -10f, 28f, 26f, 56f);
+        this.cargo.addCuboid(-14f, -32f, -10f, 28f, 32f, 56f);
         this.cargo.setPivot(0f, 0f, 0f);
 
-        // ----- Cargo Extension (28 x 26 x 24) behind cargo — extends the
-        // truck length by 1.5 blocks so it doesn't look so stubby. Same
-        // dimensions as cargo in X/Y so they form one continuous box. -----
-        this.cargoExt = new ModelPart(this, 0, 254);
-        this.cargoExt.addCuboid(-14f, -26f, 46f, 28f, 26f, 24f);
+        // ----- Cargo Extension (28 x 32 x 24) behind cargo — same height as
+        // cargo so they form one continuous tall box. -----
+        this.cargoExt = new ModelPart(this, 0, 260);
+        this.cargoExt.addCuboid(-14f, -32f, 46f, 28f, 32f, 24f);
         this.cargoExt.setPivot(0f, 0f, 0f);
-
-        // ----- Cab Front grille/bumper box (28 x 6 x 2) — small protrusion at
-        // the bottom-front of the cab, gives the cab front a distinct "face"
-        // (engine grille area) instead of just being a flat windshield. -----
-        this.cabFront = new ModelPart(this, 168, 207);
-        this.cabFront.addCuboid(-14f, -6f, -48f, 28f, 6f, 2f);
-        this.cabFront.setPivot(0f, 0f, 0f);
 
         // ----- Front Bumper (32 x 4 x 2) — UV moved to v=184 to make room
         // for bigger wheels -----
@@ -146,6 +147,16 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.wheelRR = new ModelPart(this, 170, 148);
         this.wheelRR.addCuboid(12f, 12f, 20f, 5f, 16f, 20f);
         this.wheelRR.setPivot(0f, 0f, 0f);
+
+        // ----- Second rear axle (5 x 16 x 20) — dual-axle truck, second pair
+        // of rear wheels behind the existing rear wheels at z=46-66. -----
+        this.wheelRRL = new ModelPart(this, 104, 316);
+        this.wheelRRL.addCuboid(-17f, 12f, 46f, 5f, 16f, 20f);
+        this.wheelRRL.setPivot(0f, 0f, 0f);
+
+        this.wheelRRR = new ModelPart(this, 154, 316);
+        this.wheelRRR.addCuboid(12f, 12f, 46f, 5f, 16f, 20f);
+        this.wheelRRR.setPivot(0f, 0f, 0f);
     }
 
     @Override
@@ -158,10 +169,10 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
     public void render(MatrixStack matrices, VertexConsumer vertices, int light, int overlay,
                        float red, float green, float blue, float alpha) {
         this.body.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.bodyExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cab.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cargo.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cargoExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
-        this.cabFront.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.frontBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.rearBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.headlightL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
@@ -174,5 +185,7 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.wheelFR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.wheelRL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.wheelRR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelRRL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelRRR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
     }
 }
