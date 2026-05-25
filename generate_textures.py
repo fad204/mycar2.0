@@ -397,6 +397,11 @@ def paint_car_emergency_decals(d, p):
         for side_x in (96, 192):
             d.rectangle([side_x + 4, 71, side_x + 59, 73], fill=RED)
 
+    # Sunflower decal on the body back face (south) — same spot for all car
+    # emergency variants. Car body south face is at (160, 64) size 32x16,
+    # so centering at (176, 72) puts the flower roughly in the middle.
+    draw_sunflower(d, 176, 72)
+
 # =============================================================
 # Truck entity texture (256x256) — uses TruckEntityModel UV layout
 # =============================================================
@@ -404,8 +409,8 @@ def paint_truck(img, p):
     d = ImageDraw.Draw(img)
     grain = p["panel_line"] if p["grain"] else None
 
-    # Body (32 x 16 x 96) at (0, 0)
-    paint_cuboid(d, 0, 0, 32, 16, 96, {
+    # Body (28 x 16 x 80) at (0, 0) — slim chassis
+    paint_cuboid(d, 0, 0, 28, 16, 80, {
         "top":   body_cfg(p, grain=grain),
         "bot":   {"base": CHASSIS_BOT, "highlight": False, "shadow": False},
         "west":  body_cfg(p, grain=grain),
@@ -413,6 +418,45 @@ def paint_truck(img, p):
         "east":  body_cfg(p, grain=grain),
         "south": {"base": p["body_dark"], "dark": CHASSIS_BOT, "light": p["body"], "grain_color": grain},
     })
+
+    # Wheel-arch shadows painted onto the body's west + east faces. The wheels
+    # are 18 long (axial in z) and sit at z_model = -40..-22 (front) and 22..40
+    # (rear), so on the west/east UV (which is 80 wide × 16 tall, starting at
+    # u=80, v=80), the wheel-occluded region is from u_offset = 0..18 (front
+    # wheel) and 62..80 (rear wheel). Dark stripe in those zones.
+    for v_face in (80, 80 + 80 + 28):  # west face top-left U; east face top-left U
+        # west and east both have face dims 80 (width=Z) × 16 (height=Y) starting
+        # at (u, v) = (0, 80) for west, (108, 80) for east.
+        # west at u=0..80, v=80..96. east at u=108..188, v=80..96.
+        pass
+    # Simpler: just darken the bottom 4 rows of the body west/east where wheels are.
+    # West face is at u=0..80, v=80..96. Wheel arches on bottom half (v=88..96).
+    for (ux, uw) in [(0, 18), (62, 18)]:  # front wheel & rear wheel zones
+        d.rectangle([ux, 88, ux + uw, 95], fill=p["body_dark"])
+    # East face is at u=108..188, v=80..96.
+    for (ux, uw) in [(108, 18), (170, 18)]:
+        d.rectangle([ux, 88, ux + uw, 95], fill=p["body_dark"])
+
+    # ----- Grille (24 x 8 x 1) at (0, 96) — front of cab decoration -----
+    # Slatted horizontal bars + a "logo" rectangle in the center. The north
+    # face (the front, what you see head-on) is at u=0+1, v=96+1, size 24x8.
+    GRILLE_BASE = (35, 35, 38, 255)
+    GRILLE_SLAT = (15, 15, 18, 255)
+    GRILLE_BADGE = p.get("body_light", (220, 220, 220, 255))
+    paint_cuboid(d, 0, 96, 24, 8, 1, {
+        "top":   {"base": GRILLE_BASE, "highlight": False, "shadow": False},
+        "bot":   {"base": GRILLE_BASE, "highlight": False, "shadow": False},
+        "west":  {"base": GRILLE_BASE, "highlight": False, "shadow": False},
+        "north": {"base": GRILLE_BASE, "highlight": False, "shadow": False},
+        "east":  {"base": GRILLE_BASE, "highlight": False, "shadow": False},
+        "south": {"base": GRILLE_BASE, "highlight": False, "shadow": False},
+    })
+    # Slats on the north face — 3 horizontal lines.
+    gnx, gny = 1, 96 + 1
+    for slat_y in (gny + 2, gny + 4, gny + 6):
+        d.line([(gnx, slat_y), (gnx + 23, slat_y)], fill=GRILLE_SLAT)
+    # Small centered badge.
+    d.rectangle([gnx + 10, gny + 3, gnx + 13, gny + 5], fill=GRILLE_BADGE)
 
     # Cab (28 x 16 x 32) at (0, 112)
     paint_cuboid(d, 0, 112, 28, 16, 32, {
@@ -424,16 +468,37 @@ def paint_truck(img, p):
         "south": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # back-of-cab panel
     })
 
+    # Cab side details — window frame, door seam, door handle.
+    # West side at u=0..32, v=144..160. East side at u=60..92, v=144..160.
+    DARK = p["body_dark"]
+    for side_u in (0, 60):
+        # Window frame: thin dark border framing the upper window strip.
+        d.line([(side_u + 3, 145), (side_u + 28, 145)], fill=DARK)        # top edge
+        d.line([(side_u + 3, 151), (side_u + 28, 151)], fill=DARK)        # bottom of window
+        # Door seam — vertical line splitting the cab side into front/rear door panels.
+        d.line([(side_u + 16, 146), (side_u + 16, 159)], fill=DARK)
+        # Door handles — small dark bars below the window, one per door.
+        d.rectangle([side_u + 8, 154, side_u + 11, 155], fill=DARK)
+        d.rectangle([side_u + 21, 154, side_u + 24, 155], fill=DARK)
+
     # Cargo box (28 x 16 x 56) at (0, 172) — closed delivery-van style
     paint_cuboid(d, 0, 172, 28, 16, 56, {
         "top":   roof_cfg(p, grain=grain),
         "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
-        "west":  body_cfg(p, grain=grain, panel_lines=3),
+        "west":  body_cfg(p, grain=grain, panel_lines=5),
         "north": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # front of cargo (back of cab)
-        "east":  body_cfg(p, grain=grain, panel_lines=3),
+        "east":  body_cfg(p, grain=grain, panel_lines=5),
         "south": {"base": p["body"], "dark": p["body_dark"], "light": p["body_light"],
-                  "grain_color": grain, "panel_lines": 1},  # back doors
+                  "grain_color": grain, "panel_lines": 3},  # back doors — visible slats
     })
+
+    # Cargo back-door split — vertical line down the middle of the south face
+    # at u=140..168, v=228..244 (back of truck). Suggests two rear doors that
+    # open outward.
+    d.line([(154, 229), (154, 243)], fill=p["body_dark"])
+    # Door handles either side of the split.
+    d.rectangle([150, 235, 152, 237], fill=p["body_dark"])
+    d.rectangle([156, 235, 158, 237], fill=p["body_dark"])
 
     # Front bumper (32 x 4 x 2) at (168, 172)
     paint_cuboid(d, 168, 172, 32, 4, 2, {
@@ -513,6 +578,24 @@ def paint_truck(img, p):
 # size 32x16; east side at (60, 144) size 32x16.
 # Cargo is at (0, 172), 28x16x56 → west side at (0, 228) size 56x16; east side at (84, 228)
 # size 56x16.
+def draw_sunflower(d, cx, cy):
+    """Tiny 5x5 sunflower decal centered on (cx, cy). The user's city marking,
+    painted on the back face of all emergency variants."""
+    YELLOW       = (255, 215, 50, 255)
+    YELLOW_LIGHT = (255, 240, 130, 255)
+    BROWN        = (90, 50, 20, 255)
+    # Eight petals around a center: 4 cardinal + 4 diagonal.
+    for dx, dy in [(0, -2), (0, 2), (-2, 0), (2, 0)]:
+        d.point((cx + dx, cy + dy), fill=YELLOW)
+    for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2)]:
+        d.point((cx + dx, cy + dy), fill=YELLOW_LIGHT)
+    # Inner ring of brighter petals.
+    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+        d.point((cx + dx, cy + dy), fill=YELLOW)
+    # Brown disc at center (just the one pixel since we're 5x5).
+    d.point((cx, cy), fill=BROWN)
+
+
 def paint_truck_emergency_decals(d, p):
     kind = p["emergency"]
     rx0, ry0 = 32, 112
@@ -550,6 +633,11 @@ def paint_truck_emergency_decals(d, p):
             d.rectangle([side_x + 3, 153, side_x + 28, 155], fill=RED)
         for side_x in (0, 84):
             d.rectangle([side_x + 3, 235, side_x + 52, 237], fill=RED)
+
+    # Sunflower decal on the cargo back face (south) — same spot for all
+    # emergency variants. Cargo south face is at (140, 228) size 28x16, so
+    # centering at (154, 236) puts the flower roughly in the middle.
+    draw_sunflower(d, 154, 236)
 
 # =============================================================
 # Bicycle entity texture (128x64) — uses BicycleEntityModel UV layout
