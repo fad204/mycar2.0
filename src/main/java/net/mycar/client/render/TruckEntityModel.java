@@ -33,11 +33,12 @@ import net.minecraft.client.util.math.MatrixStack;
 public class TruckEntityModel extends EntityModel<TruckEntity> {
 
     public static final int TEX_W = 256;
-    public static final int TEX_H = 256;
+    public static final int TEX_H = 320;
 
     public final ModelPart body;
     public final ModelPart cab;
     public final ModelPart cargo;
+    public final ModelPart cargoExt;
     public final ModelPart cabFront;
     public final ModelPart frontBumper;
     public final ModelPart rearBumper;
@@ -73,6 +74,13 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.cargo = new ModelPart(this, 0, 172);
         this.cargo.addCuboid(-14f, -26f, -10f, 28f, 26f, 56f);
         this.cargo.setPivot(0f, 0f, 0f);
+
+        // ----- Cargo Extension (28 x 26 x 24) behind cargo — extends the
+        // truck length by 1.5 blocks so it doesn't look so stubby. Same
+        // dimensions as cargo in X/Y so they form one continuous box. -----
+        this.cargoExt = new ModelPart(this, 0, 254);
+        this.cargoExt.addCuboid(-14f, -26f, 46f, 28f, 26f, 24f);
+        this.cargoExt.setPivot(0f, 0f, 0f);
 
         // ----- Cab Front grille/bumper box (28 x 6 x 2) — small protrusion at
         // the bottom-front of the cab, gives the cab front a distinct "face"
@@ -152,6 +160,7 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.body.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cab.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cargo.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.cargoExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cabFront.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.frontBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.rearBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
