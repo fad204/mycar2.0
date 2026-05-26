@@ -28,8 +28,8 @@ public class TruckEntity extends AbstractVehicleEntity implements Inventory {
     private static final double[] GEAR_TOP_SPEED = {0.15, 0.35, 0.55, 0.75, 0.95};
 
     private static final double[][] SEATS = {
-        { 0.45, 0.0, 1.10},  // 0 driver  - front-left of cab (US style)
-        {-0.45, 0.0, 1.10},  // 1         - front-right of cab
+        { 0.45, 0.0, 2.00},  // 0 driver  - front-left of cab (US style)
+        {-0.45, 0.0, 2.00},  // 1         - front-right of cab
     };
 
     private final DefaultedList<ItemStack> inventory =
@@ -52,7 +52,7 @@ public class TruckEntity extends AbstractVehicleEntity implements Inventory {
     @Override protected double     getFuelConsumptionAtTop() { return 0.10; } // heavier = thirstier
     @Override protected int        getMaxPassengers()        { return 2; }
     @Override protected double[][] getSeatLocalPositions()   { return SEATS; }
-    @Override public    double     getMountedHeightOffset()  { return 1.0; } // head at cab roof — fe1de6e baseline
+    @Override public    double     getMountedHeightOffset()  { return 1.5; }  // head at new cab roof (cab height 22, roof ≈ world y 3.125)
 
     @Override
     protected Item getDropItem() {
