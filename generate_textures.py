@@ -431,8 +431,9 @@ def paint_truck(img, p):
     # Small center badge between slats.
     d.rectangle([110, 102, 113, 106], fill=p.get("body_light", (220, 220, 220, 255)))
 
-    # Body Extension (32 x 16 x 24) at (104, 260) — extends chassis to match cargoExt
-    paint_cuboid(d, 104, 260, 32, 16, 24, {
+    # Body Extension (32 x 16 x 24) at (112, 260) — UV shifted right to make
+    # room for wider cargoExt (which is now 32 wide).
+    paint_cuboid(d, 112, 260, 32, 16, 24, {
         "top":   body_cfg(p, grain=grain),
         "bot":   {"base": CHASSIS_BOT, "highlight": False, "shadow": False},
         "west":  body_cfg(p, grain=grain),
@@ -441,32 +442,41 @@ def paint_truck(img, p):
         "south": {"base": p["body_dark"], "dark": CHASSIS_BOT, "light": p["body"], "grain_color": grain},  # rear of chassis
     })
 
-    # Cab (28 x 24 x 32) at (0, 112) — windshield is the entire cab front face
-    # now (no grille split). The grille moved to the body north face above.
-    paint_cuboid(d, 0, 112, 28, 24, 32, {
+    # Cab (32 x 22 x 32) at (0, 112) — width 32 now (was 28), same as body.
+    # Truck is no longer "skinny" — cab matches body chassis width.
+    paint_cuboid(d, 0, 112, 32, 22, 32, {
         "top":   roof_cfg(p, grain=grain),
         "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
-        "west":  window_cfg(),
+        "west":  body_cfg(p, grain=grain),
         "north": windshield_cfg(),
-        "east":  window_cfg(),
+        "east":  body_cfg(p, grain=grain),
         "south": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # back-of-cab panel
     })
 
-    # Cargo box (28 x 32 x 56) at (0, 172) — TALLER cargo (32 vs 24 cab), so
-    # the cargo box sits 0.5 blocks above the cab roof. Real Italian trucks
-    # have cargo taller than cab.
-    paint_cuboid(d, 0, 172, 28, 32, 56, {
+    # Side windows on cab west and east faces. With cab width 32, west face
+    # is still at (0, 144)-(32, 166), but east face shifted to (64, 144)-(96, 166).
+    WINDOW_GLASS = (140, 180, 220, 200)
+    WINDOW_FRAME = p["body_dark"]
+    for u_off in (0, 64):  # west at u=0, east at u=64 (= sz + sx = 32 + 32)
+        # Filled window
+        d.rectangle([u_off + 4, 147, u_off + 27, 156], fill=WINDOW_GLASS)
+        # Dark frame outline
+        d.rectangle([u_off + 4, 147, u_off + 27, 156], outline=WINDOW_FRAME)
+        # Vertical door seam
+        d.line([(u_off + 14, 144), (u_off + 14, 165)], fill=WINDOW_FRAME)
+
+    # Cargo box (32 x 32 x 56) at (0, 172) — width 32, same as cab.
+    paint_cuboid(d, 0, 172, 32, 32, 56, {
         "top":   roof_cfg(p, grain=grain),
         "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
         "west":  body_cfg(p, grain=grain, panel_lines=3),
-        "north": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # front of cargo (back of cab)
+        "north": body_cfg(p, grain=grain),  # upper portion visible above cab roof
         "east":  body_cfg(p, grain=grain, panel_lines=3),
         "south": {"base": p["body_dark"], "dark": p["body_dark"], "light": p["body"]},  # hidden against cargoExt
     })
 
-    # Cargo extension (28 x 32 x 24) at (0, 260) — same dimensions as cargo in
-    # X/Y. UV moved from v=254 to v=260 because cargo is now 32 tall.
-    paint_cuboid(d, 0, 260, 28, 32, 24, {
+    # Cargo extension (32 x 32 x 24) at (0, 260) — width 32 to match cargo.
+    paint_cuboid(d, 0, 260, 32, 32, 24, {
         "top":   roof_cfg(p, grain=grain),
         "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
         "west":  body_cfg(p, grain=grain, panel_lines=1),
@@ -521,10 +531,10 @@ def paint_truck(img, p):
             "south": {"base": p["body"], "highlight": False, "shadow": False},
         })
 
-    # 6 Wheels (5 x 16 x 20) — dual rear axle for delivery-truck look. FL/FR
-    # at front, RL/RR at first rear axle, RRL/RRR at second rear axle.
-    for (uw, vw) in ((120, 112), (170, 112), (120, 148), (170, 148),
-                     (104, 316), (154, 316)):
+    # 6 Wheels (5 x 16 x 20) — dual rear axle for delivery-truck look. UV
+    # positions shifted right by 8 to make room for the wider cab UV.
+    for (uw, vw) in ((128, 112), (178, 112), (128, 148), (178, 148),
+                     (112, 316), (162, 316)):
         paint_cuboid(d, uw, vw, 5, 16, 20, {
             "top":   {"base": WHEEL, "highlight": False, "shadow": False},
             "bot":   {"base": WHEEL, "highlight": False, "shadow": False},
@@ -599,7 +609,12 @@ def draw_sunflower(d, x, y):
 def paint_truck_emergency_decals(d, p):
     kind = p["emergency"]
     rx0, ry0 = 32, 112
-    rcx, rcy = rx0 + 14, ry0 + 16
+    # Cab top face is now 32x32 (sx=32). Center is at rx0+16, ry0+16.
+    rcx, rcy = rx0 + 16, ry0 + 16
+    # Side-face east-U positions for the wider sx=32 cuboids:
+    # cab east at u = sz + sx = 32 + 32 = 64
+    # cargo east at u = sz + sx = 56 + 32 = 88
+    # cargoExt east at u = sz + sx = 24 + 32 = 56
     if kind == "police":
         BLUE = (35, 70, 230, 255)
         RED  = (220, 30, 30, 255)
@@ -609,25 +624,25 @@ def paint_truck_emergency_decals(d, p):
         d.rectangle([rcx + 1, rcy - 1, rcx + 5, rcy + 1], fill=RED)
         d.point((rcx, rcy), fill=(0, 0, 0, 255))
         # White + blue stripes on both sides of the cab and cargo.
-        for side_x in (0, 60):
+        for side_x in (0, 64):
             d.rectangle([side_x + 3, 152, side_x + 28, 153], fill=WHITE)
             d.rectangle([side_x + 3, 154, side_x + 28, 155], fill=BLUE)
-        for side_x in (0, 84):
+        for side_x in (0, 88):
             d.rectangle([side_x + 3, 234, side_x + 52, 235], fill=WHITE)
             d.rectangle([side_x + 3, 236, side_x + 52, 237], fill=BLUE)
-        # Extend stripes onto cargoExt west(u=0)/east(u=52), same V offset.
-        for side_x in (0, 52):
+        # Extend stripes onto cargoExt west(u=0)/east(u=56)
+        for side_x in (0, 56):
             d.rectangle([side_x + 2, 284, side_x + 22, 285], fill=WHITE)
             d.rectangle([side_x + 2, 286, side_x + 22, 287], fill=BLUE)
     elif kind == "fire":
         YELLOW = (245, 215, 55, 255)
-        # Yellow stripe along cab roof
-        d.rectangle([rx0 + 2, rcy - 1, rx0 + 25, rcy + 1], fill=YELLOW)
-        for side_x in (0, 60):
+        # Yellow stripe along cab roof (cab top is now 32 wide)
+        d.rectangle([rx0 + 2, rcy - 1, rx0 + 29, rcy + 1], fill=YELLOW)
+        for side_x in (0, 64):
             d.rectangle([side_x + 3, 153, side_x + 28, 155], fill=YELLOW)
-        for side_x in (0, 84):
+        for side_x in (0, 88):
             d.rectangle([side_x + 3, 235, side_x + 52, 237], fill=YELLOW)
-        for side_x in (0, 52):
+        for side_x in (0, 56):
             d.rectangle([side_x + 2, 285, side_x + 22, 287], fill=YELLOW)
     elif kind == "ambulance":
         RED = (220, 25, 25, 255)
@@ -635,22 +650,18 @@ def paint_truck_emergency_decals(d, p):
         d.rectangle([rcx - 1, rcy - 4, rcx + 1, rcy + 4], fill=RED)
         d.rectangle([rcx - 4, rcy - 1, rcx + 4, rcy + 1], fill=RED)
         # Red side stripes on cab and cargo
-        for side_x in (0, 60):
+        for side_x in (0, 64):
             d.rectangle([side_x + 3, 153, side_x + 28, 155], fill=RED)
-        for side_x in (0, 84):
+        for side_x in (0, 88):
             d.rectangle([side_x + 3, 235, side_x + 52, 237], fill=RED)
-        for side_x in (0, 52):
+        for side_x in (0, 56):
             d.rectangle([side_x + 2, 285, side_x + 22, 287], fill=RED)
 
-    # Sunflower decal on the BACK of truck — now on cargoExt's south face, since
-    # cargoExt extends behind cargo. cargoExt south face (28x26) is at
-    # (u + 2*sz + sx, v + sz) = (0 + 48 + 28, 254 + 24) = (76, 278).
-    # 16-wide sunflower centered: u = 76 + (28-16)/2 = 82, v = 278 + (26-16)/2 = 283.
-    # Sunflower decal on the BACK of truck — cargoExt's south face. Since cargo
-    # is now 32 tall (was 26), cargoExt UV moved from v=254 to v=260. CargoExt
-    # south face is at (76, 284), size 28x32. 16-wide sunflower centered:
-    # u = 76 + (28-16)/2 = 82, v = 284 + (32-16)/2 = 292.
-    draw_sunflower(d, 82, 292)
+    # Sunflower decal on the BACK of truck — cargoExt's south face. With
+    # cargoExt now 32 wide (sx=32, sz=24), south face is at
+    # (u + 2*sz + sx, v + sz) = (0 + 48 + 32, 260 + 24) = (80, 284), size 32x32.
+    # 16-wide sunflower centered: u = 80 + (32-16)/2 = 88, v = 284 + (32-16)/2 = 292.
+    draw_sunflower(d, 88, 292)
 
 # =============================================================
 # Bicycle entity texture (128x64) — uses BicycleEntityModel UV layout
