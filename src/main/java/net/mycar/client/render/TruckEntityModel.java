@@ -66,28 +66,27 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
 
         // ----- Body Extension (32 x 16 x 24) at the rear — extends chassis
         // out to match where cargoExt ends, so the cargo doesn't hang off
-        // the back of the truck. -----
-        this.bodyExt = new ModelPart(this, 104, 260);
+        // the back of the truck. UV shifted to (112, 260) to make room for
+        // wider cargoExt. -----
+        this.bodyExt = new ModelPart(this, 112, 260);
         this.bodyExt.addCuboid(-16f, 0f, 48f, 32f, 16f, 24f);
         this.bodyExt.setPivot(0f, 0f, 0f);
 
-        // ----- Cab (28 x 24 x 32) at front — taller cab to match real truck
-        // proportions (was 28x16x32). Roof now at world Y ≈ 3.25. -----
+        // ----- Cab (32 x 22 x 32) at front — width 32 (was 28) so cab is now
+        // the same width as the body chassis. Roof at world Y ≈ 3.125. -----
         this.cab = new ModelPart(this, 0, 112);
-        this.cab.addCuboid(-14f, -24f, -46f, 28f, 24f, 32f);
+        this.cab.addCuboid(-16f, -22f, -46f, 32f, 22f, 32f);
         this.cab.setPivot(0f, 0f, 0f);
 
-        // ----- Cargo Box (28 x 32 x 56) behind cab — TALLER than cab now
-        // (32 vs 24) so the closed cargo box sits 0.5 blocks above the cab
-        // roof. Real Italian delivery trucks have cargo taller than cab. -----
+        // ----- Cargo Box (32 x 32 x 56) — width 32 (was 28) to match cab.
+        // Flush against cab back. Still 32 tall, taller than cab. -----
         this.cargo = new ModelPart(this, 0, 172);
-        this.cargo.addCuboid(-14f, -32f, -10f, 28f, 32f, 56f);
+        this.cargo.addCuboid(-16f, -32f, -14f, 32f, 32f, 56f);
         this.cargo.setPivot(0f, 0f, 0f);
 
-        // ----- Cargo Extension (28 x 32 x 24) behind cargo — same height as
-        // cargo so they form one continuous tall box. -----
+        // ----- Cargo Extension (32 x 32 x 24) — width 32 to match cargo. -----
         this.cargoExt = new ModelPart(this, 0, 260);
-        this.cargoExt.addCuboid(-14f, -32f, 46f, 28f, 32f, 24f);
+        this.cargoExt.addCuboid(-16f, -32f, 42f, 32f, 32f, 24f);
         this.cargoExt.setPivot(0f, 0f, 0f);
 
         // ----- Front Bumper (32 x 4 x 2) — UV moved to v=184 to make room
@@ -128,33 +127,30 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.mirrorR.addCuboid(14f, -14f, -42f, 2f, 3f, 4f);
         this.mirrorR.setPivot(0f, 0f, 0f);
 
-        // ----- 4 Wheels (5 x 16 x 20) — bigger than before so they read as
-        // proper truck tires. Y range 12-28 puts wheel bottom on the ground
-        // (world Y=0) and wheel top at world Y=1.0 — partially overlapping
-        // body chassis like a fender. -----
-        this.wheelFL = new ModelPart(this, 120, 112);
+        // ----- 4 Wheels (5 x 16 x 20) — UV positions shifted right by 8 to
+        // make room for wider cab UV (cab is now 32 wide). -----
+        this.wheelFL = new ModelPart(this, 128, 112);
         this.wheelFL.addCuboid(-17f, 12f, -40f, 5f, 16f, 20f);
         this.wheelFL.setPivot(0f, 0f, 0f);
 
-        this.wheelFR = new ModelPart(this, 170, 112);
+        this.wheelFR = new ModelPart(this, 178, 112);
         this.wheelFR.addCuboid(12f, 12f, -40f, 5f, 16f, 20f);
         this.wheelFR.setPivot(0f, 0f, 0f);
 
-        this.wheelRL = new ModelPart(this, 120, 148);
+        this.wheelRL = new ModelPart(this, 128, 148);
         this.wheelRL.addCuboid(-17f, 12f, 20f, 5f, 16f, 20f);
         this.wheelRL.setPivot(0f, 0f, 0f);
 
-        this.wheelRR = new ModelPart(this, 170, 148);
+        this.wheelRR = new ModelPart(this, 178, 148);
         this.wheelRR.addCuboid(12f, 12f, 20f, 5f, 16f, 20f);
         this.wheelRR.setPivot(0f, 0f, 0f);
 
-        // ----- Second rear axle (5 x 16 x 20) — dual-axle truck, second pair
-        // of rear wheels behind the existing rear wheels at z=46-66. -----
-        this.wheelRRL = new ModelPart(this, 104, 316);
+        // ----- Second rear axle (5 x 16 x 20) — UV also shifted right. -----
+        this.wheelRRL = new ModelPart(this, 112, 316);
         this.wheelRRL.addCuboid(-17f, 12f, 46f, 5f, 16f, 20f);
         this.wheelRRL.setPivot(0f, 0f, 0f);
 
-        this.wheelRRR = new ModelPart(this, 154, 316);
+        this.wheelRRR = new ModelPart(this, 162, 316);
         this.wheelRRR.addCuboid(12f, 12f, 46f, 5f, 16f, 20f);
         this.wheelRRR.setPivot(0f, 0f, 0f);
     }
