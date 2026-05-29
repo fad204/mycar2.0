@@ -78,15 +78,16 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.cab.addCuboid(-16f, -22f, -46f, 32f, 22f, 32f);
         this.cab.setPivot(0f, 0f, 0f);
 
-        // ----- Cargo Box (32 x 32 x 56) — width 32 (was 28) to match cab.
-        // Flush against cab back. Still 32 tall, taller than cab. -----
+        // ----- Cargo Box (32 x 32 x 56) — small 4-unit gap between cab back
+        // (z=-14) and cargo front (z=-10). Real Italian trucks have this
+        // visible gap with chassis showing between cab and cargo box. -----
         this.cargo = new ModelPart(this, 0, 172);
-        this.cargo.addCuboid(-16f, -32f, -14f, 32f, 32f, 56f);
+        this.cargo.addCuboid(-16f, -32f, -10f, 32f, 32f, 56f);
         this.cargo.setPivot(0f, 0f, 0f);
 
-        // ----- Cargo Extension (32 x 32 x 24) — width 32 to match cargo. -----
+        // ----- Cargo Extension (32 x 32 x 24) — at z=46 flush against cargo. -----
         this.cargoExt = new ModelPart(this, 0, 260);
-        this.cargoExt.addCuboid(-16f, -32f, 42f, 32f, 32f, 24f);
+        this.cargoExt.addCuboid(-16f, -32f, 46f, 32f, 32f, 24f);
         this.cargoExt.setPivot(0f, 0f, 0f);
 
         // ----- Front Bumper (32 x 4 x 2) — UV moved to v=184 to make room
