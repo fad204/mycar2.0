@@ -625,6 +625,49 @@ def draw_sunflower(d, x, y):
                 d.point((x + col, y + row), fill=colors[ch])
 
 
+# =============================================================
+# Tiny 4x5 pixel font for emergency-vehicle text decals (POLIZIA,
+# AMBULANZA, VVF). Only the letters we actually use are defined.
+# Each glyph is 4 pixels wide × 5 tall; render with 1 pixel of spacing
+# between glyphs so a full word is (5*N - 1) pixels wide.
+# =============================================================
+FONT_4x5 = {
+    "A": [".##.", "#..#", "####", "#..#", "#..#"],
+    "B": ["###.", "#..#", "###.", "#..#", "###."],
+    "F": ["####", "#...", "###.", "#...", "#..."],
+    "I": ["####", ".##.", ".##.", ".##.", "####"],
+    "L": ["#...", "#...", "#...", "#...", "####"],
+    "M": ["#..#", "####", "####", "#..#", "#..#"],
+    "N": ["#..#", "##.#", "####", "#.##", "#..#"],
+    "O": [".##.", "#..#", "#..#", "#..#", ".##."],
+    "P": ["###.", "#..#", "###.", "#...", "#..."],
+    "U": ["#..#", "#..#", "#..#", "#..#", ".##."],
+    "V": ["#..#", "#..#", "#..#", ".##.", ".#.."],
+    "Z": ["####", "...#", ".##.", "#...", "####"],
+}
+
+
+def text_width_4x5(text):
+    """Pixel width of a string rendered with FONT_4x5 (4 px wide glyphs, 1 px spacing)."""
+    n = len(text)
+    return 5 * n - 1 if n > 0 else 0
+
+
+def draw_text_4x5(d, text, x, y, color):
+    """Paint `text` at (x, y) in the given color using the 4x5 pixel font.
+    Coordinates are the top-left corner of the first glyph. Any character
+    not in FONT_4x5 is silently skipped (advances column anyway so spacing
+    stays consistent)."""
+    for ch in text.upper():
+        glyph = FONT_4x5.get(ch)
+        if glyph is not None:
+            for row, line in enumerate(glyph):
+                for col, c in enumerate(line):
+                    if c == "#":
+                        d.point((x + col, y + row), fill=color)
+        x += 5  # 4-wide glyph + 1-px gap
+
+
 def paint_truck_emergency_decals(d, p):
     kind = p["emergency"]
     rx0, ry0 = 32, 112
@@ -673,6 +716,10 @@ def paint_truck_emergency_decals(d, p):
         # Two parallel stripes running along the slab length (UV vertical).
         d.rectangle([42, 318, 43, 342], fill=WHITE)
         d.rectangle([44, 318, 45, 342], fill=BLUE)
+        # "POLIZIA" text below the stripes on both cargo sides. Text is
+        # 7*5-1 = 34 px wide; cargo face is 56 wide so we center at u+11.
+        for side_x in (0, 92):
+            draw_text_4x5(d, "POLIZIA", side_x + 11, 242, WHITE)
     elif kind == "fire":
         YELLOW = (245, 215, 55, 255)
         RED = (200, 30, 25, 255)
@@ -698,6 +745,11 @@ def paint_truck_emergency_decals(d, p):
         # Yellow stripe down slab top center (slab top at (28,316)-(60,344)).
         # Stripe runs along z (UV vertical) at slab center x (UV col 44).
         d.rectangle([43, 318, 44, 342], fill=YELLOW)
+        # "VVF" (Vigili del Fuoco) text below the stripes on both cargo
+        # sides. 3*5-1 = 14 px wide; cargo face is 56 wide so center at u+21.
+        WHITE = (255, 255, 255, 255)
+        for side_x in (0, 92):
+            draw_text_4x5(d, "VVF", side_x + 21, 242, WHITE)
     elif kind == "ambulance":
         RED = (220, 25, 25, 255)
         WHITE = (255, 255, 255, 255)
@@ -723,6 +775,10 @@ def paint_truck_emergency_decals(d, p):
         # Center at (44, 330). Cross arms 12 long × 2 wide.
         d.rectangle([43, 324, 44, 335], fill=RED)   # vertical
         d.rectangle([38, 329, 49, 330], fill=RED)   # horizontal
+        # "AMBULANZA" text below stripes on cargo sides. 9*5-1 = 44 px wide;
+        # cargo face is 56 wide so center at u+6.
+        for side_x in (0, 92):
+            draw_text_4x5(d, "AMBULANZA", side_x + 6, 242, WHITE)
 
     # Sunflower decal on cargoExt's south face. With cargoExt now 36 wide
     # (sx=36, sz=24), south face is at (u + 2*sz + sx, v + sz) =
@@ -1048,7 +1104,9 @@ def generate_lang():
     obj["key.mycar.gear_up"]        = "Shift Gear Up"
     obj["key.mycar.gear_down"]      = "Shift Gear Down"
     obj["key.mycar.handbrake"]      = "Handbrake"
+    obj["key.mycar.toggle_siren"]   = "Emergency Lights & Siren"
     obj["category.mycar.driving"]   = "MyCar: Driving"
+    obj["subtitles.mycar.siren"]    = "Siren wails"
     add_toll_lang_entries(obj)
     write_json(LANG_DIR / "en_us.json", obj)
 
