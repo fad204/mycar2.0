@@ -1,0 +1,11 @@
+{
+  "siren": {
+    "subtitle": "subtitles.mycar.siren",
+    "sounds": [
+      {
+        "name": "mycar:siren",
+        "stream": false
+      }
+    ]
+  }
+}
