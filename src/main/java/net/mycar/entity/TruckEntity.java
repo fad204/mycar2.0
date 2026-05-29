@@ -1,141 +1,187 @@
-package net.mycar.entity;
+package net.mycar.client.render;
 
-import net.mycar.MyCarMod;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.Inventories;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
-import net.minecraft.text.TranslatableText;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.collection.DefaultedList;
-import net.minecraft.world.World;
+import net.mycar.entity.TruckEntity;
+import net.minecraft.client.model.ModelPart;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.entity.model.EntityModel;
+import net.minecraft.client.util.math.MatrixStack;
 
 /**
- * Truck: slower, larger, 2 seats, 54-slot cargo box.
- * Sneak + right-click opens the cargo. Plain right-click mounts.
+ * Truck model — 15 parts in a 256x256 texture.
+ *
+ * 2 wide x 2 tall (visible) x 6 long blocks. Cab in the front (32 long),
+ * closed cargo box in the back (56 long). 4 wheels.
+ *
+ * UV layout (computed for cuboid footprint = 2*sx+2*sz wide, sy+sz tall):
+ *
+ *   Body       (32 x 16 x 96) at (0,   0)    -> 256 x 112
+ *   Cab        (28 x 16 x 32) at (0, 112)    -> 120 x 48
+ *   Wheel 0    ( 5 x 12 x 18) at (120,112)   ->  46 x 30
+ *   Wheel 1    ( 5 x 12 x 18) at (166,112)   ->  46 x 30
+ *   Wheel 2    ( 5 x 12 x 18) at (120,142)   ->  46 x 30
+ *   Wheel 3    ( 5 x 12 x 18) at (166,142)   ->  46 x 30
+ *   Cargo Box  (28 x 16 x 56) at (0, 172)    -> 168 x 72
+ *   FrontBump  (32 x  4 x  2) at (168,172)   ->  68 x  6
+ *   RearBump   (32 x  4 x  2) at (168,178)   ->  68 x  6
+ *   Headlight L (3 x  3 x  1) at (168,184)
+ *   Headlight R (3 x  3 x  1) at (178,184)
+ *   Taillight L (3 x  3 x  1) at (188,184)
+ *   Taillight R (3 x  3 x  1) at (198,184)
+ *   Mirror L    (2 x  3 x  4) at (168,188)
+ *   Mirror R    (2 x  3 x  4) at (182,188)
  */
-public class TruckEntity extends AbstractVehicleEntity implements Inventory {
+public class TruckEntityModel extends EntityModel<TruckEntity> {
 
-    public static final int INVENTORY_SIZE = 54; // 6 rows of 9 - same as double chest
+    public static final int TEX_W = 256;
+    public static final int TEX_H = 384;
 
-    private static final double[] GEAR_TOP_SPEED = {0.15, 0.35, 0.55, 0.75, 0.95};
+    public final ModelPart body;
+    public final ModelPart bodyExt;
+    public final ModelPart cab;
+    public final ModelPart cargo;
+    public final ModelPart cargoExt;
+    public final ModelPart frontBumper;
+    public final ModelPart rearBumper;
+    public final ModelPart headlightL;
+    public final ModelPart headlightR;
+    public final ModelPart taillightL;
+    public final ModelPart taillightR;
+    public final ModelPart mirrorL;
+    public final ModelPart mirrorR;
+    public final ModelPart wheelFL;
+    public final ModelPart wheelFR;
+    public final ModelPart wheelRL;
+    public final ModelPart wheelRR;
+    public final ModelPart wheelRRL;
+    public final ModelPart wheelRRR;
 
-    private static final double[][] SEATS = {
-        { 0.45, 0.0, 2.00},  // 0 driver  - front-left of cab (US style)
-        {-0.45, 0.0, 2.00},  // 1         - front-right of cab
-    };
+    public TruckEntityModel() {
+        this.textureWidth = TEX_W;
+        this.textureHeight = TEX_H;
 
-    private final DefaultedList<ItemStack> inventory =
-        DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY);
+        // ----- Body (32 x 16 x 96) — fe1de6e baseline -----
+        this.body = new ModelPart(this, 0, 0);
+        this.body.addCuboid(-16f, 0f, -48f, 32f, 16f, 96f);
+        this.body.setPivot(0f, 0f, 0f);
 
-    public TruckEntity(EntityType<? extends TruckEntity> type, World world) {
-        super(type, world);
+        // ----- Body Extension (32 x 16 x 24) at the rear — extends chassis
+        // out to match where cargoExt ends, so the cargo doesn't hang off
+        // the back of the truck. UV shifted to (112, 260) to make room for
+        // wider cargoExt. -----
+        this.bodyExt = new ModelPart(this, 112, 260);
+        this.bodyExt.addCuboid(-16f, 0f, 48f, 32f, 16f, 24f);
+        this.bodyExt.setPivot(0f, 0f, 0f);
+
+        // ----- Cab (32 x 22 x 32) at front — width 32 (was 28) so cab is now
+        // the same width as the body chassis. Roof at world Y ≈ 3.125. -----
+        this.cab = new ModelPart(this, 0, 112);
+        this.cab.addCuboid(-16f, -22f, -46f, 32f, 22f, 32f);
+        this.cab.setPivot(0f, 0f, 0f);
+
+        // ----- Cargo Box (32 x 32 x 56) — width 32 (was 28) to match cab.
+        // Flush against cab back. Still 32 tall, taller than cab. -----
+        this.cargo = new ModelPart(this, 0, 172);
+        this.cargo.addCuboid(-16f, -32f, -14f, 32f, 32f, 56f);
+        this.cargo.setPivot(0f, 0f, 0f);
+
+        // ----- Cargo Extension (32 x 32 x 24) — width 32 to match cargo. -----
+        this.cargoExt = new ModelPart(this, 0, 260);
+        this.cargoExt.addCuboid(-16f, -32f, 42f, 32f, 32f, 24f);
+        this.cargoExt.setPivot(0f, 0f, 0f);
+
+        // ----- Front Bumper (32 x 4 x 2) — UV moved to v=184 to make room
+        // for bigger wheels -----
+        this.frontBumper = new ModelPart(this, 168, 184);
+        this.frontBumper.addCuboid(-16f, 10f, -50f, 32f, 4f, 2f);
+        this.frontBumper.setPivot(0f, 0f, 0f);
+
+        // ----- Rear Bumper (32 x 4 x 2) -----
+        this.rearBumper = new ModelPart(this, 168, 190);
+        this.rearBumper.addCuboid(-16f, 10f, 48f, 32f, 4f, 2f);
+        this.rearBumper.setPivot(0f, 0f, 0f);
+
+        // ----- Headlights (3 x 3 x 1) at front corners -----
+        this.headlightL = new ModelPart(this, 168, 196);
+        this.headlightL.addCuboid(-14f, 4f, -49f, 3f, 3f, 1f);
+        this.headlightL.setPivot(0f, 0f, 0f);
+
+        this.headlightR = new ModelPart(this, 176, 196);
+        this.headlightR.addCuboid(11f, 4f, -49f, 3f, 3f, 1f);
+        this.headlightR.setPivot(0f, 0f, 0f);
+
+        // ----- Taillights (3 x 3 x 1) at rear corners -----
+        this.taillightL = new ModelPart(this, 184, 196);
+        this.taillightL.addCuboid(-14f, 4f, 48f, 3f, 3f, 1f);
+        this.taillightL.setPivot(0f, 0f, 0f);
+
+        this.taillightR = new ModelPart(this, 192, 196);
+        this.taillightR.addCuboid(11f, 4f, 48f, 3f, 3f, 1f);
+        this.taillightR.setPivot(0f, 0f, 0f);
+
+        // ----- Mirrors (2 x 3 x 4) on cab sides -----
+        this.mirrorL = new ModelPart(this, 168, 200);
+        this.mirrorL.addCuboid(-16f, -14f, -42f, 2f, 3f, 4f);
+        this.mirrorL.setPivot(0f, 0f, 0f);
+
+        this.mirrorR = new ModelPart(this, 180, 200);
+        this.mirrorR.addCuboid(14f, -14f, -42f, 2f, 3f, 4f);
+        this.mirrorR.setPivot(0f, 0f, 0f);
+
+        // ----- 4 Wheels (5 x 16 x 20) — UV positions shifted right by 8 to
+        // make room for wider cab UV (cab is now 32 wide). -----
+        this.wheelFL = new ModelPart(this, 128, 112);
+        this.wheelFL.addCuboid(-17f, 12f, -40f, 5f, 16f, 20f);
+        this.wheelFL.setPivot(0f, 0f, 0f);
+
+        this.wheelFR = new ModelPart(this, 178, 112);
+        this.wheelFR.addCuboid(12f, 12f, -40f, 5f, 16f, 20f);
+        this.wheelFR.setPivot(0f, 0f, 0f);
+
+        this.wheelRL = new ModelPart(this, 128, 148);
+        this.wheelRL.addCuboid(-17f, 12f, 20f, 5f, 16f, 20f);
+        this.wheelRL.setPivot(0f, 0f, 0f);
+
+        this.wheelRR = new ModelPart(this, 178, 148);
+        this.wheelRR.addCuboid(12f, 12f, 20f, 5f, 16f, 20f);
+        this.wheelRR.setPivot(0f, 0f, 0f);
+
+        // ----- Second rear axle (5 x 16 x 20) — UV also shifted right. -----
+        this.wheelRRL = new ModelPart(this, 112, 316);
+        this.wheelRRL.addCuboid(-17f, 12f, 46f, 5f, 16f, 20f);
+        this.wheelRRL.setPivot(0f, 0f, 0f);
+
+        this.wheelRRR = new ModelPart(this, 162, 316);
+        this.wheelRRR.addCuboid(12f, 12f, 46f, 5f, 16f, 20f);
+        this.wheelRRR.setPivot(0f, 0f, 0f);
     }
-
-    // -------- Tuning overrides --------
-    @Override protected double[]   getGearTopSpeeds()        { return GEAR_TOP_SPEED; }
-    @Override protected int        getMaxFuel()              { return 2000; } // bigger tank
-    @Override protected double     getAcceleration()         { return 0.02; } // slower to pick up
-    @Override protected double     getBrakeStrength()        { return 0.06; }
-    @Override protected double     getFriction()             { return 0.020; }
-    @Override protected double     getReverseFraction()      { return 0.30; }
-    @Override protected float      getMaxTurnRate()          { return 2.5f; } // wider turning radius
-    @Override protected double     getMinTurnSpeed()         { return 0.04; }
-    @Override protected double     getWaterSpeedCap()        { return 0.04; }
-    @Override protected double     getFuelConsumptionAtTop() { return 0.10; } // heavier = thirstier
-    @Override protected int        getMaxPassengers()        { return 2; }
-    @Override protected double[][] getSeatLocalPositions()   { return SEATS; }
-    @Override public    double     getMountedHeightOffset()  { return 1.5; }  // head at new cab roof (cab height 22, roof ≈ world y 3.125)
 
     @Override
-    protected Item getDropItem() {
-        return MyCarMod.TRUCK_ITEMS.getOrDefault(getVariant(), MyCarMod.TRUCK_ITEMS.get(0));
-    }
-
-    // -------- Interact: sneak opens cargo, else fall through to mount/refuel --------
-    @Override
-    public ActionResult interact(PlayerEntity player, Hand hand) {
-        if (player.isSneaking()) {
-            if (!this.world.isClient) {
-                player.openHandledScreen(new SimpleNamedScreenHandlerFactory(
-                    (syncId, inv, p) -> GenericContainerScreenHandler.createGeneric9x6(syncId, inv, this),
-                    new TranslatableText("entity.mycar.truck.cargo")
-                ));
-            }
-            return ActionResult.success(this.world.isClient);
-        }
-        return super.interact(player, hand);
-    }
-
-    // -------- Save/Load with inventory --------
-    @Override
-    protected void readCustomDataFromNbt(NbtCompound tag) {
-        super.readCustomDataFromNbt(tag);
-        this.inventory.clear();
-        Inventories.readNbt(tag, this.inventory);
+    public void setAngles(TruckEntity entity, float limbAngle, float limbDistance,
+                          float animationProgress, float headYaw, float headPitch) {
+        // No animations yet.
     }
 
     @Override
-    protected void writeCustomDataToNbt(NbtCompound tag) {
-        super.writeCustomDataToNbt(tag);
-        Inventories.writeNbt(tag, this.inventory);
+    public void render(MatrixStack matrices, VertexConsumer vertices, int light, int overlay,
+                       float red, float green, float blue, float alpha) {
+        this.body.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.bodyExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.cab.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.cargo.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.cargoExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.frontBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.rearBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.headlightL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.headlightR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.taillightL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.taillightR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.mirrorL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.mirrorR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelFL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelFR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelRL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelRR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelRRL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.wheelRRR.render(matrices, vertices, light, overlay, red, green, blue, alpha);
     }
-
-    // -------- Drop cargo on destruction --------
-    @Override
-    protected void onDestroyed(DamageSource source) {
-        for (ItemStack stack : this.inventory) {
-            if (!stack.isEmpty()) {
-                this.dropStack(stack.copy());
-            }
-        }
-        this.inventory.clear();
-    }
-
-    // ========== Inventory implementation ==========
-    @Override public int size() { return INVENTORY_SIZE; }
-
-    @Override
-    public boolean isEmpty() {
-        for (ItemStack s : this.inventory) if (!s.isEmpty()) return false;
-        return true;
-    }
-
-    @Override public ItemStack getStack(int slot) { return this.inventory.get(slot); }
-
-    @Override
-    public ItemStack removeStack(int slot, int amount) {
-        ItemStack result = Inventories.splitStack(this.inventory, slot, amount);
-        if (!result.isEmpty()) this.markDirty();
-        return result;
-    }
-
-    @Override
-    public ItemStack removeStack(int slot) {
-        return Inventories.removeStack(this.inventory, slot);
-    }
-
-    @Override
-    public void setStack(int slot, ItemStack stack) {
-        this.inventory.set(slot, stack);
-        if (stack.getCount() > this.getMaxCountPerStack()) {
-            stack.setCount(this.getMaxCountPerStack());
-        }
-    }
-
-    @Override public void markDirty() { /* persisted via writeCustomDataToNbt */ }
-
-    @Override
-    public boolean canPlayerUse(PlayerEntity player) {
-        return !this.removed && this.squaredDistanceTo(player) < 64.0;
-    }
-
-    @Override public void clear() { this.inventory.clear(); }
 }
