@@ -26,7 +26,7 @@ LANG_DIR = RES_DIR / "assets/mycar/lang"
 RECIPE_DIR = RES_DIR / "data/mycar/recipes"
 
 # =============================================================
-# Shared (variant-independent) colo
+# Shared (variant-independent) colors
 # =============================================================
 WINDOW       = (130, 180, 220, 110)   # alpha < 255 => translucent glass
 WINDOW_DARK  = ( 80, 130, 180, 110)
@@ -778,10 +778,14 @@ def paint_truck_emergency_decals(d, p):
         for side_x in (0, 92):
             d.rectangle([side_x + 3, 234, side_x + 52, 235], fill=WHITE)
             d.rectangle([side_x + 3, 236, side_x + 52, 237], fill=BLUE)
-        # Extend stripes onto cargoExt west(u=0)/east(u=60)
+        # Extend stripes onto cargoExt west(u=0)/east(u=60). cargoExt west
+        # face starts at v=284; previously bands sat at v=284-287 (0-3 from
+        # top of face), but cargo bands sit at v=234-237 (6-9 from top of
+        # cargo face). In world they ended up 0.375 blocks higher on
+        # cargoExt — visibly mismatched. Bump to v=290-293 to align.
         for side_x in (0, 60):
-            d.rectangle([side_x + 2, 284, side_x + 22, 285], fill=WHITE)
-            d.rectangle([side_x + 2, 286, side_x + 22, 287], fill=BLUE)
+            d.rectangle([side_x + 2, 290, side_x + 22, 291], fill=WHITE)
+            d.rectangle([side_x + 2, 292, side_x + 22, 293], fill=BLUE)
         # White + blue stripe on slab top (top face at (28,316)-(60,344)).
         # Two parallel stripes running along the slab length (UV vertical).
         d.rectangle([42, 318, 43, 342], fill=WHITE)
@@ -813,7 +817,8 @@ def paint_truck_emergency_decals(d, p):
         for side_x in (0, 92):
             d.rectangle([side_x + 3, 235, side_x + 52, 237], fill=YELLOW)
         for side_x in (0, 60):
-            d.rectangle([side_x + 2, 285, side_x + 22, 287], fill=YELLOW)
+            # Aligned with cargo band at v=235-237 (same world height).
+            d.rectangle([side_x + 2, 291, side_x + 22, 293], fill=YELLOW)
         # Yellow stripe down slab top center (slab top at (28,316)-(60,344)).
         # Stripe runs along z (UV vertical) at slab center x (UV col 44).
         d.rectangle([43, 318, 44, 342], fill=YELLOW)
@@ -844,7 +849,8 @@ def paint_truck_emergency_decals(d, p):
         for side_x in (0, 92):
             d.rectangle([side_x + 3, 235, side_x + 52, 237], fill=RED)
         for side_x in (0, 60):
-            d.rectangle([side_x + 2, 285, side_x + 22, 287], fill=RED)
+            # Aligned with cargo band at v=235-237 (same world height).
+            d.rectangle([side_x + 2, 291, side_x + 22, 293], fill=RED)
         # Red cross on cab slab top (UV slab top at (28,316)-(60,344), 32x28).
         # Center at (44, 330). Cross arms 12 long × 2 wide.
         d.rectangle([43, 324, 44, 335], fill=RED)   # vertical
