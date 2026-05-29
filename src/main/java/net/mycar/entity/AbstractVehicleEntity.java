@@ -79,14 +79,16 @@ public abstract class AbstractVehicleEntity extends Entity {
     protected static final TrackedData<Boolean> HAS_DEBT =
         DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
+    /** True while the driver has flipped on lights+siren on an emergency
+     *  variant. Synced server→client so all viewers see the same state and
+     *  the client-side {@code SirenSoundInstance} can start/stop. */
+    protected static final TrackedData<Boolean> SIREN_ACTIVE =
+        DataTracker.registerData(AbstractVehicleEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+
     // ---------------- Server-side runtime state ----------------
     protected double currentSpeed = 0.0;
     protected double fuelFraction = 0.0;
     protected boolean handbrakePending = false;
-
-    /** Tick at which we last played the siren for this emergency vehicle.
-     *  Used to space out re-triggers — the OGG is ~4.5s long (~90 ticks). */
-    private int lastSirenTick = -1000;
 
     // Manual position tracking for HUD speed and fuel. Entity.prevX is reset
     // to current X at the start of each tick's baseTick(), so on the server
@@ -108,6 +110,7 @@ public abstract class AbstractVehicleEntity extends Entity {
         this.dataTracker.startTracking(DAMAGE_TAKEN, 0.0f);
         this.dataTracker.startTracking(VARIANT, 0);
         this.dataTracker.startTracking(HAS_DEBT, false);
+        this.dataTracker.startTracking(SIREN_ACTIVE, false);
     }
 
     // ---------------- Subclass-supplied tuning ----------------
@@ -163,6 +166,19 @@ public abstract class AbstractVehicleEntity extends Entity {
      *  ambulance). Emergency vehicles are exempt from toll fees and speed
      *  camera fines. */
     public boolean isEmergency() { return getVariant() >= V_POLICE; }
+
+    /** True if the driver has flipped on the emergency lights and siren.
+     *  Only meaningful on emergency variants; non-emergency variants ignore
+     *  the value. Synced via DataTracker so clients can react. */
+    public boolean isSirenActive() { return this.dataTracker.get(SIREN_ACTIVE); }
+    public void setSirenActive(boolean on) { this.dataTracker.set(SIREN_ACTIVE, on); }
+
+    /** Server-side toggle for the emergency-mode keybind. No-op on non-
+     *  emergency variants so a regular truck can't trigger sirens. */
+    public void toggleSiren() {
+        if (!this.isEmergency()) return;
+        this.dataTracker.set(SIREN_ACTIVE, !this.dataTracker.get(SIREN_ACTIVE));
+    }
     public void setVariant(int v) { this.dataTracker.set(VARIANT, MathHelper.clamp(v, 0, NUM_VARIANTS - 1)); }
     /** Raw velocity along the heading axis, in blocks per tick. Used by the
      *  speed camera (which converts to km/h via {@code |speed| * 20 * 3.6}). */
@@ -221,21 +237,11 @@ public abstract class AbstractVehicleEntity extends Entity {
             }
         }
 
-        // Server-side: emergency vehicles play their siren on a loop while
-        // they have a driver. The OGG is ~4.5s long, so we re-trigger every
-        // 88 ticks to keep the sound continuous without much gap. Sirens
-        // stop the moment the player dismounts.
-        if (!this.world.isClient && this.isEmergency() && this.hasPassengers()
-                && (this.age - this.lastSirenTick) >= 88) {
-            this.world.playSound(
-                null,                          // player = null → broadcast to all nearby
-                this.getX(), this.getY(), this.getZ(),
-                net.mycar.MyCarMod.SIREN_SOUND,
-                net.minecraft.sound.SoundCategory.NEUTRAL,
-                1.6F,                          // volume (extends audible range)
-                1.0F                           // pitch
-            );
-            this.lastSirenTick = this.age;
+        // Server-side: auto-clear SIREN_ACTIVE when the vehicle has no driver,
+        // so a parked emergency vehicle never sits with its lights blaring.
+        if (!this.world.isClient && !this.hasPassengers()
+                && this.dataTracker.get(SIREN_ACTIVE)) {
+            this.dataTracker.set(SIREN_ACTIVE, false);
         }
 
         if (this.isLogicalSideForUpdatingMovement()) {
