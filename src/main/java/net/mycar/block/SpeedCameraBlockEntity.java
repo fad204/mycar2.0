@@ -62,6 +62,15 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
      *  the time BEs tick (baseTick already ran), so we measure motion
      *  ourselves over the interval between scans. Format: uuid → [x, z, tick]. */
     private final Map<UUID, double[]> lastSeen = new HashMap<>();
+    /** Number of CONSECUTIVE scans on which this vehicle measured over the
+     *  speed limit. We require at least 2 to fire a ticket, so that a single
+     *  spurious one-tick spike (caused by network lag batching several ticks
+     *  of motion into a single position update — a real artifact of
+     *  client-authoritative vehicle movement) doesn't trigger a false fine.
+     *  Reset to 0 whenever a scan measures the vehicle under-limit. */
+    private final Map<UUID, Integer> consecutiveOverLimit = new HashMap<>();
+    /** Minimum consecutive over-limit scans before a ticket is fired. */
+    private static final int MIN_CONSECUTIVE_OVER_LIMIT = 2;
 
     /** Debug info — shown on right-click with empty hand. Lets the user verify
      *  the camera is actually detecting vehicles (and at what speed) without
@@ -128,8 +137,13 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
             if (it.next().getValue() <= now) it.remove();
         }
         // Sweep lastSeen entries that haven't been refreshed for a while
-        // (vehicles that left and didn't return).
-        this.lastSeen.entrySet().removeIf(e -> now - (long) e.getValue()[2] > 200);
+        // (vehicles that left and didn't return). Sweep consecutiveOverLimit
+        // for the same UUIDs so a re-entering vehicle starts fresh.
+        this.lastSeen.entrySet().removeIf(e -> {
+            boolean stale = now - (long) e.getValue()[2] > 200;
+            if (stale) this.consecutiveOverLimit.remove(e.getKey());
+            return stale;
+        });
 
         BlockPos pos = this.getPos();
         double cx = pos.getX() + 0.5;  // horizontal center of camera block
@@ -175,13 +189,27 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
 
             if (this.recentlyTicketed.containsKey(uuid)) continue;
             if (kmh < 0) continue;                              // no measurement yet
-            if (kmh <= this.speedLimitKmh) continue;            // under limit
+
+            // Track consecutive over-limit readings. A single one-tick spike
+            // (lag artifact) won't accumulate; only a vehicle that's
+            // genuinely over the limit will hit the threshold across
+            // multiple back-to-back scans.
+            if (kmh <= this.speedLimitKmh) {
+                this.consecutiveOverLimit.remove(uuid);
+                continue;
+            }
+            int overCount = this.consecutiveOverLimit.getOrDefault(uuid, 0) + 1;
+            this.consecutiveOverLimit.put(uuid, overCount);
+            if (overCount < MIN_CONSECUTIVE_OVER_LIMIT) continue;
 
             Entity primary = vehicle.getPrimaryPassenger();
             if (!(primary instanceof PlayerEntity)) continue;
             PlayerEntity player = (PlayerEntity) primary;
 
             this.recentlyTicketed.put(uuid, now + COOLDOWN_TICKS);
+            // Clear the over-limit counter once we've fired so the cooldown
+            // is the only gate keeping us from re-ticketing immediately.
+            this.consecutiveOverLimit.remove(uuid);
 
             // Three-stage bill (plate → inventory → debt). Identical pattern
             // to the toll camera; the result is summarized as a "ticket".
