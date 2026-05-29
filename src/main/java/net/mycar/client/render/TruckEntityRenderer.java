@@ -16,10 +16,11 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3f;
 
 public class TruckEntityRenderer extends EntityRenderer<TruckEntity> {
-    /** Lift the plate label above the cab. Truck cab top reaches y ≈ 2.75 and
-     *  the default label sits at y = 3.0 (only 0.25 clearance, hard to read);
-     *  +0.5 puts it comfortably above. */
-    private static final double LABEL_LIFT = 0.5;
+    /** Lift the plate label clearly above the truck. After cargo became
+     *  taller (top at world y ≈ 3.75) and we added a roof slab + light bar,
+     *  the old +0.5 lift sat below cargo top. +1.25 puts it ~0.5 above
+     *  the highest geometry. */
+    private static final double LABEL_LIFT = 1.25;
 
     private static final Identifier[] TEXTURES;
     static {
