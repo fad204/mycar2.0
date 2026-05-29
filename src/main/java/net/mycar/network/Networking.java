@@ -54,6 +54,10 @@ public class Networking {
                 AbstractVehicleEntity v = (AbstractVehicleEntity) vehicle;
                 if (v.getPrimaryPassenger() == player) {
                     v.toggleSiren();
+                    // Show a quick action-bar message so the driver gets
+                    // immediate visual confirmation that Y did something.
+                    String msg = v.isSirenActive() ? "Sirens ON" : "Sirens OFF";
+                    player.sendMessage(new net.minecraft.text.LiteralText(msg), true);
                 }
             }
         });
