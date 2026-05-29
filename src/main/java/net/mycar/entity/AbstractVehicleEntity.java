@@ -84,6 +84,10 @@ public abstract class AbstractVehicleEntity extends Entity {
     protected double fuelFraction = 0.0;
     protected boolean handbrakePending = false;
 
+    /** Tick at which we last played the siren for this emergency vehicle.
+     *  Used to space out re-triggers — the OGG is ~4.5s long (~90 ticks). */
+    private int lastSirenTick = -1000;
+
     // Manual position tracking for HUD speed and fuel. Entity.prevX is reset
     // to current X at the start of each tick's baseTick(), so on the server
     // with client-side physics it ends up equal to X, giving a delta of 0.
@@ -154,6 +158,11 @@ public abstract class AbstractVehicleEntity extends Entity {
     public int getGear()       { return this.dataTracker.get(GEAR); }
     public void setGear(int v) { this.dataTracker.set(GEAR, MathHelper.clamp(v, 1, NUM_GEARS)); }
     public int getVariant()    { return this.dataTracker.get(VARIANT); }
+
+    /** True if this vehicle is an emergency variant (police, fire, or
+     *  ambulance). Emergency vehicles are exempt from toll fees and speed
+     *  camera fines. */
+    public boolean isEmergency() { return getVariant() >= V_POLICE; }
     public void setVariant(int v) { this.dataTracker.set(VARIANT, MathHelper.clamp(v, 0, NUM_VARIANTS - 1)); }
     /** Raw velocity along the heading axis, in blocks per tick. Used by the
      *  speed camera (which converts to km/h via {@code |speed| * 20 * 3.6}). */
@@ -210,6 +219,23 @@ public abstract class AbstractVehicleEntity extends Entity {
             if (this.dataTracker.get(HAS_DEBT) != hasDebt) {
                 this.dataTracker.set(HAS_DEBT, hasDebt);
             }
+        }
+
+        // Server-side: emergency vehicles play their siren on a loop while
+        // they have a driver. The OGG is ~4.5s long, so we re-trigger every
+        // 88 ticks to keep the sound continuous without much gap. Sirens
+        // stop the moment the player dismounts.
+        if (!this.world.isClient && this.isEmergency() && this.hasPassengers()
+                && (this.age - this.lastSirenTick) >= 88) {
+            this.world.playSound(
+                null,                          // player = null → broadcast to all nearby
+                this.getX(), this.getY(), this.getZ(),
+                net.mycar.MyCarMod.SIREN_SOUND,
+                net.minecraft.sound.SoundCategory.NEUTRAL,
+                1.6F,                          // volume (extends audible range)
+                1.0F                           // pitch
+            );
+            this.lastSirenTick = this.age;
         }
 
         if (this.isLogicalSideForUpdatingMovement()) {
