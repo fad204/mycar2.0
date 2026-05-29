@@ -145,10 +145,9 @@ public class CarEntityModel extends EntityModel<CarEntity> {
     public void setAngles(CarEntity entity, float limbAngle, float limbDistance,
                           float animationProgress, float headYaw, float headPitch) {
         // Light bar visible only when emergency variant AND siren toggled on.
-        // 4-on / 4-off strobe (~2.5 Hz) so it clearly flashes.
-        this.lightBar.visible = entity.isEmergency()
-            && entity.isSirenActive()
-            && ((entity.age / 4) % 2 == 0);
+        // No strobe gating — full-brightness rendering in render() gives the
+        // "lit up" look.
+        this.lightBar.visible = entity.isEmergency() && entity.isSirenActive();
     }
 
     @Override
@@ -158,7 +157,8 @@ public class CarEntityModel extends EntityModel<CarEntity> {
         this.hood.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cabin.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.roof.render(matrices, vertices, light, overlay, red, green, blue, alpha);
-        this.lightBar.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        // LightBar at full brightness (0xF000F0) so it looks lit/emissive.
+        this.lightBar.render(matrices, vertices, 0xF000F0, overlay, red, green, blue, alpha);
         this.frontBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.rearBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.headlightL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
