@@ -29,6 +29,7 @@ import net.minecraft.entity.SpawnGroup;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroup;
+import net.minecraft.sound.SoundEvent;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
 
@@ -119,6 +120,13 @@ public class MyCarMod implements ModInitializer {
         FabricEntityTypeBuilder.<BicycleEntity>create(SpawnGroup.MISC, BicycleEntity::new)
             .dimensions(EntityDimensions.fixed(0.8f, 1.5f))
             .trackRangeBlocks(80).trackedUpdateRate(3).build()
+    );
+
+    // ---------------- Sounds ----------------
+    // Police siren — played periodically by emergency vehicles when they have
+    // a driver. See AbstractVehicleEntity.tick().
+    public static final SoundEvent SIREN_SOUND = Registry.register(
+        Registry.SOUND_EVENT, id("siren"), new SoundEvent(id("siren"))
     );
 
     @Override
