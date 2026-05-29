@@ -107,12 +107,13 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.roofFairing.addCuboid(-18f, -32f, -14f, 36f, 10f, 4f);
         this.roofFairing.setPivot(0f, 0f, 0f);
 
-        // ----- Light Bar (20 x 2 x 6) — on cab roof, centered. Only rendered
-        // when the vehicle is an emergency variant (visibility set in
-        // setAngles). For police: blue+red flashers. For ambulance: red
-        // crosses. For fire: yellow stripes. -----
+        // ----- Light Bar (20 x 2 x 6) — on top of the cab slab. Only rendered
+        // when the vehicle is an emergency variant AND has its siren active
+        // (visibility set in setAngles). Y range -26..-24 puts the bar
+        // entirely above the slab (slab top is y=-24); previously y=-24..-22
+        // placed it INSIDE the slab where you couldn't see it. -----
         this.lightBar = new ModelPart(this, 244, 184);
-        this.lightBar.addCuboid(-10f, -24f, -33f, 20f, 2f, 6f);
+        this.lightBar.addCuboid(-10f, -26f, -33f, 20f, 2f, 6f);
         this.lightBar.setPivot(0f, 0f, 0f);
 
         // ----- Front Bumper (36 x 4 x 2) — widened to match body -----
