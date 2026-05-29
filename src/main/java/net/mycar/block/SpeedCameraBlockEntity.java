@@ -2,6 +2,7 @@ package net.mycar.block;
 
 import net.mycar.MyCarMod;
 import net.mycar.entity.AbstractVehicleEntity;
+import net.mycar.entity.BicycleEntity;
 import net.mycar.util.RfcAccountState;
 import net.mycar.util.RfcCurrency;
 import net.minecraft.block.BlockState;
@@ -77,8 +78,13 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
      *  MIN_CONSECUTIVE_OVER_LIMIT in a row before firing a ticket, as an
      *  extra defense against transient measurement artifacts. */
     private final Map<UUID, Integer> consecutiveOverLimit = new HashMap<>();
-    /** Minimum consecutive over-limit scans before a ticket is fired. */
-    private static final int MIN_CONSECUTIVE_OVER_LIMIT = 2;
+    /** Minimum consecutive over-limit scans before a ticket is fired. With
+     *  the moving window already smoothing out lag spikes, a single valid
+     *  over-limit reading is meaningful — keeping this at 1 ensures fast
+     *  vehicles (e.g. 144+ km/h passing the box in only 5 ticks) still
+     *  fire reliably. The history.size()>=3 requirement below provides
+     *  spike protection. */
+    private static final int MIN_CONSECUTIVE_OVER_LIMIT = 1;
 
     /** Debug info — shown on right-click with empty hand. Lets the user verify
      *  the camera is actually detecting vehicles (and at what speed) without
@@ -167,6 +173,11 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
             AbstractVehicleEntity.class, scan, e -> true);
 
         for (AbstractVehicleEntity vehicle : vehicles) {
+            // Bikes and emergency vehicles (police/fire/ambulance) are exempt
+            // from speed cameras — they don't get fined for speeding.
+            if (vehicle instanceof BicycleEntity) continue;
+            if (vehicle.isEmergency()) continue;
+
             UUID uuid = vehicle.getUuid();
             String name = vehicle.hasCustomName()
                 ? vehicle.getCustomName().getString()
@@ -183,11 +194,14 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
             }
 
             // Compute speed across the oldest and newest samples in the
-            // window. A single-tick lag spike gets diluted across the window
-            // (typically 4 ticks at WINDOW_SAMPLES=5), so the reading reflects
-            // sustained motion rather than a one-tick measurement artifact.
+            // window. Require at least 3 samples (i.e. a 2-tick window) so
+            // the first measurement is already a 2-tick average — this
+            // dilutes single-tick lag spikes by ~50%. At 144 km/h the
+            // vehicle is in the box for ~5 ticks, giving us samples 3, 4,
+            // 5 to measure and fire on (MIN_CONSECUTIVE_OVER_LIMIT=1
+            // fires on the first valid reading).
             double kmh = -1.0;
-            if (history.size() >= 2) {
+            if (history.size() >= 3) {
                 double[] oldest = history.peekFirst();
                 double[] newest = history.peekLast();
                 long elapsed = (long) newest[2] - (long) oldest[2];
