@@ -409,12 +409,11 @@ def paint_car_emergency_decals(d, p):
         for side_x in BODY_SIDES_U:
             d.rectangle([side_x + 3, 65, side_x + 60, 65], fill=WHITE)
             d.rectangle([side_x + 3, 66, side_x + 60, 66], fill=BLUE)
-        # "POLIZIA" text on body sides — single line centered horizontally
-        # and vertically below the stripe. Text is 34 px wide (7 chars × 5
-        # px - 1), body face is 64 wide → u_off = 15. Vertical center at
-        # v=72..76 of a 64..79 face.
+        # "POLIZIA" text on body sides — single line, centered horizontally,
+        # at v=69 (raised from earlier v=72 which sat too low on the flank).
+        # 7 chars × 5 - 1 = 34 px wide; centered → u_off=15.
         for side_x in BODY_SIDES_U:
-            draw_text_4x5(d, "POLIZIA", side_x + 15, 72, WHITE)
+            draw_text_4x5(d, "POLIZIA", side_x + 15, 69, WHITE)
 
     elif kind == "fire":
         YELLOW = (245, 215, 55, 255)
@@ -434,12 +433,12 @@ def paint_car_emergency_decals(d, p):
         # Yellow stripe along top of body sides.
         for side_x in BODY_SIDES_U:
             d.rectangle([side_x + 3, 65, side_x + 60, 66], fill=YELLOW)
-        # "VIGILI DEL" / "FUOCO" two-line text. White on red body. Line 1
-        # (10 chars = 49 px) centers at u_off=7; line 2 (5 chars = 24 px)
-        # centers at u_off=20. Vertical: line 1 at v=69, line 2 at v=75.
+        # "V.V.F." on car body sides — abbreviation since the full
+        # "VIGILI DEL FUOCO" is 79 px wide at 4x5 and doesn't fit in the
+        # 64-px body flank. Trucks (56 → cargo flank) still get the full
+        # two-line text. 6 chars × 5 - 1 = 29 px wide; center at u+18.
         for side_x in BODY_SIDES_U:
-            draw_text_4x5(d, "VIGILI DEL", side_x + 7,  69, WHITE)
-            draw_text_4x5(d, "FUOCO",      side_x + 20, 75, WHITE)
+            draw_text_4x5(d, "V.V.F.", side_x + 18, 69, WHITE)
 
     elif kind == "ambulance":
         RED   = (220, 25, 25, 255)
@@ -459,8 +458,9 @@ def paint_car_emergency_decals(d, p):
         for side_x in BODY_SIDES_U:
             d.rectangle([side_x + 3, 65, side_x + 60, 66], fill=RED)
         # "AMBULANZA" text in RED on the white body. 44 px wide → u_off=10.
+        # v=69 (raised — was v=72 which sat too low on the flank).
         for side_x in BODY_SIDES_U:
-            draw_text_4x5(d, "AMBULANZA", side_x + 10, 72, RED)
+            draw_text_4x5(d, "AMBULANZA", side_x + 10, 69, RED)
 
     # Sunflower decal on the body back face (south) — Minecraft-style 16×16.
     # Car body south is at (160, 64) size 32×16; centered 16-wide flower
@@ -713,6 +713,7 @@ FONT_4x5 = {
     "U": ["#..#", "#..#", "#..#", "#..#", ".##."],
     "V": ["#..#", "#..#", "#..#", ".##.", ".#.."],
     "Z": ["####", "...#", ".##.", "#...", "####"],
+    ".": ["....", "....", "....", "##..", "##.."],
 }
 
 
