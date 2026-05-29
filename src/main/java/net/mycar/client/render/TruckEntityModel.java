@@ -187,11 +187,9 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
     public void setAngles(TruckEntity entity, float limbAngle, float limbDistance,
                           float animationProgress, float headYaw, float headPitch) {
         // Light bar visible only on emergency variants with siren toggled
-        // on, and strobes 4 ticks on / 4 ticks off (~2.5 Hz) so it actually
-        // looks like a flashing emergency light, not a static decoration.
-        this.lightBar.visible = entity.isEmergency()
-            && entity.isSirenActive()
-            && ((entity.age / 4) % 2 == 0);
+        // on. No strobe gating — it's the lightBar's full-brightness
+        // rendering in render() below that gives it the "lit up" look.
+        this.lightBar.visible = entity.isEmergency() && entity.isSirenActive();
     }
 
     @Override
@@ -204,7 +202,11 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.cargo.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cargoExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.roofFairing.render(matrices, vertices, light, overlay, red, green, blue, alpha);
-        this.lightBar.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        // LightBar renders at full brightness (0xF000F0) so when it's visible
+        // it actually looks lit up / emissive — like a real police flasher —
+        // instead of being shaded by ambient light along with the rest of
+        // the truck.
+        this.lightBar.render(matrices, vertices, 0xF000F0, overlay, red, green, blue, alpha);
         this.frontBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.rearBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.headlightL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
