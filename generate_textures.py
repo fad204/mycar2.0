@@ -277,6 +277,16 @@ def paint_car(img, p):
         "west":  roof_cfg(p), "north": roof_cfg(p), "east": roof_cfg(p), "south": roof_cfg(p),
     })
 
+    # Light bar (16 x 2 x 6) at (108, 152). Default paint blends with the
+    # roof so non-emergency variants don't see anything (also the part is
+    # hidden via setAngles). Emergency variants override this in
+    # paint_car_emergency_decals with bright flasher colors.
+    paint_cuboid(d, 108, 152, 16, 2, 6, {
+        "top":   roof_cfg(p, grain=grain),
+        "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
+        "west":  roof_cfg(p), "north": roof_cfg(p), "east": roof_cfg(p), "south": roof_cfg(p),
+    })
+
     # Front bumper (30 x 4 x 2) at (0, 184)
     paint_cuboid(d, 0, 184, 30, 4, 2, {
         "top": bumper_cfg(p), "bot": {"base": p["bumper_dark"], "highlight": False, "shadow": False},
@@ -359,43 +369,98 @@ def paint_car(img, p):
 # Car BODY north side (left-side panels) at (96, 64), size 64x16.
 def paint_car_emergency_decals(d, p):
     kind = p["emergency"]
-    # Roof top (where a light-bar would sit) — center it on roof
-    rx0, ry0 = 28, 152
-    rcx, rcy = rx0 + 13, ry0 + 14  # center of 26x28 roof
+    # Body west (left flank) is at UV (0,64)-(64,80) — 64 wide × 16 tall.
+    # Body east (right flank) is at UV (96,64)-(160,80). PREVIOUS code
+    # used (96, 192) which painted into wheel-UV territory; the right flank
+    # actually starts at u=96.
+    BODY_SIDES_U = (0, 96)  # west, east
+
+    # Light bar UV layout (UV 108,152, dim 16x2x6 → UV layout 44x8):
+    #   top    at (u+sz, v)         = (114, 152), size 16x6 → (114,152)-(130,158)
+    #   north  at (u+sz, v+sz)      = (114, 158), size 16x2 → (114,158)-(130,160)
+    #   south  at (u+2*sz+sx, v+sz) = (134, 158), size 16x2 → (134,158)-(150,160)
+    #   west   at (u, v+sz)         = (108, 158), size  6x2 → (108,158)-(114,160)
+    #   east   at (u+sz+sx, v+sz)   = (130, 158), size  6x2 → (130,158)-(136,160)
+    #   (bot face hidden against the roof — no need to override)
+
     if kind == "police":
-        # Light bar: 4 blue squares left, 4 red squares right, centered.
-        BLUE = (35, 70, 230, 255)
-        RED  = (220, 30, 30, 255)
-        # Bar runs along width (X = sx axis = 26 wide), centered on rcy.
-        bar_y0, bar_y1 = rcy - 1, rcy + 1
-        # Left half: blue
-        d.rectangle([rcx - 5, bar_y0, rcx - 1, bar_y1], fill=BLUE)
-        # Right half: red
-        d.rectangle([rcx + 1, bar_y0, rcx + 5, bar_y1], fill=RED)
-        # Black separator pixel
-        d.point((rcx, rcy), fill=(0, 0, 0, 255))
-        # Side stripes on doors: thin blue+white stripe along the body sides.
-        # Body north side (left flank) at (96, 64), size 64x16.
-        # Body south side (right flank) at (192, 64), size 64x16.
-        for side_x in (96, 192):
-            d.rectangle([side_x + 4, 70, side_x + 59, 71], fill=(255, 255, 255, 255))
-            d.rectangle([side_x + 4, 72, side_x + 59, 73], fill=BLUE)
+        BLUE  = (35, 70, 230, 255)
+        RED   = (220, 30, 30, 255)
+        WHITE = (255, 255, 255, 255)
+        # Light bar — blue + red halves, same layout as the truck's.
+        # Top face (114..129, 152..157): left half blue, right half red.
+        d.rectangle([114, 152, 121, 157], fill=BLUE)
+        d.rectangle([122, 152, 129, 157], fill=RED)
+        # North face (114..129, 158..159) — front-facing
+        d.rectangle([114, 158, 121, 159], fill=BLUE)
+        d.rectangle([122, 158, 129, 159], fill=RED)
+        # South face (134..149, 158..159) — back-facing
+        d.rectangle([134, 158, 141, 159], fill=BLUE)
+        d.rectangle([142, 158, 149, 159], fill=RED)
+        # West face (108..113, 158..159) — left side
+        d.rectangle([108, 158, 110, 159], fill=BLUE)
+        d.rectangle([111, 158, 113, 159], fill=RED)
+        # East face (130..135, 158..159) — right side
+        d.rectangle([130, 158, 132, 159], fill=BLUE)
+        d.rectangle([133, 158, 135, 159], fill=RED)
+        # Body-side stripe (white over blue) at v=65..66 — top of the flank,
+        # leaving room for text below. Each flank is 64 wide; stripe runs
+        # u_off+3 to u_off+60.
+        for side_x in BODY_SIDES_U:
+            d.rectangle([side_x + 3, 65, side_x + 60, 65], fill=WHITE)
+            d.rectangle([side_x + 3, 66, side_x + 60, 66], fill=BLUE)
+        # "POLIZIA" text on body sides — single line centered horizontally
+        # and vertically below the stripe. Text is 34 px wide (7 chars × 5
+        # px - 1), body face is 64 wide → u_off = 15. Vertical center at
+        # v=72..76 of a 64..79 face.
+        for side_x in BODY_SIDES_U:
+            draw_text_4x5(d, "POLIZIA", side_x + 15, 72, WHITE)
+
     elif kind == "fire":
-        # Yellow reflective stripe across roof + along body sides.
         YELLOW = (245, 215, 55, 255)
-        d.rectangle([rx0 + 2, rcy - 1, rx0 + 23, rcy + 1], fill=YELLOW)
-        for side_x in (96, 192):
-            d.rectangle([side_x + 4, 71, side_x + 59, 73], fill=YELLOW)
+        BLUE   = (35, 70, 230, 255)
+        WHITE  = (255, 255, 255, 255)
+        # Light bar — yellow + blue (same scheme as truck, see comment there).
+        d.rectangle([114, 152, 121, 157], fill=YELLOW)
+        d.rectangle([122, 152, 129, 157], fill=BLUE)
+        d.rectangle([114, 158, 121, 159], fill=YELLOW)
+        d.rectangle([122, 158, 129, 159], fill=BLUE)
+        d.rectangle([134, 158, 141, 159], fill=YELLOW)
+        d.rectangle([142, 158, 149, 159], fill=BLUE)
+        d.rectangle([108, 158, 110, 159], fill=YELLOW)
+        d.rectangle([111, 158, 113, 159], fill=BLUE)
+        d.rectangle([130, 158, 132, 159], fill=YELLOW)
+        d.rectangle([133, 158, 135, 159], fill=BLUE)
+        # Yellow stripe along top of body sides.
+        for side_x in BODY_SIDES_U:
+            d.rectangle([side_x + 3, 65, side_x + 60, 66], fill=YELLOW)
+        # "VIGILI DEL" / "FUOCO" two-line text. White on red body. Line 1
+        # (10 chars = 49 px) centers at u_off=7; line 2 (5 chars = 24 px)
+        # centers at u_off=20. Vertical: line 1 at v=69, line 2 at v=75.
+        for side_x in BODY_SIDES_U:
+            draw_text_4x5(d, "VIGILI DEL", side_x + 7,  69, WHITE)
+            draw_text_4x5(d, "FUOCO",      side_x + 20, 75, WHITE)
+
     elif kind == "ambulance":
-        # Red cross on the roof.
-        RED = (220, 25, 25, 255)
-        # Vertical bar of the cross
-        d.rectangle([rcx - 1, rcy - 3, rcx + 1, rcy + 3], fill=RED)
-        # Horizontal bar of the cross
-        d.rectangle([rcx - 3, rcy - 1, rcx + 3, rcy + 1], fill=RED)
-        # Red stripe along body sides
-        for side_x in (96, 192):
-            d.rectangle([side_x + 4, 71, side_x + 59, 73], fill=RED)
+        RED   = (220, 25, 25, 255)
+        WHITE = (255, 255, 255, 255)
+        # Light bar — red flashers with white-cross accent on top, matching
+        # the truck ambulance variant.
+        d.rectangle([114, 152, 129, 157], fill=RED)
+        # White cross on top face center
+        d.rectangle([120, 153, 123, 156], fill=WHITE)
+        d.rectangle([121, 152, 122, 157], fill=WHITE)
+        # Side faces solid red
+        d.rectangle([114, 158, 129, 159], fill=RED)
+        d.rectangle([134, 158, 149, 159], fill=RED)
+        d.rectangle([108, 158, 113, 159], fill=RED)
+        d.rectangle([130, 158, 135, 159], fill=RED)
+        # Red stripe along top of body sides.
+        for side_x in BODY_SIDES_U:
+            d.rectangle([side_x + 3, 65, side_x + 60, 66], fill=RED)
+        # "AMBULANZA" text in RED on the white body. 44 px wide → u_off=10.
+        for side_x in BODY_SIDES_U:
+            draw_text_4x5(d, "AMBULANZA", side_x + 10, 72, RED)
 
     # Sunflower decal on the body back face (south) — Minecraft-style 16×16.
     # Car body south is at (160, 64) size 32×16; centered 16-wide flower
@@ -634,7 +699,11 @@ def draw_sunflower(d, x, y):
 FONT_4x5 = {
     "A": [".##.", "#..#", "####", "#..#", "#..#"],
     "B": ["###.", "#..#", "###.", "#..#", "###."],
+    "C": [".###", "#...", "#...", "#...", ".###"],
+    "D": ["###.", "#..#", "#..#", "#..#", "###."],
+    "E": ["####", "#...", "###.", "#...", "####"],
     "F": ["####", "#...", "###.", "#...", "#..."],
+    "G": [".##.", "#...", "#.##", "#..#", ".##."],
     "I": ["####", ".##.", ".##.", ".##.", "####"],
     "L": ["#...", "#...", "#...", "#...", "####"],
     "M": ["#..#", "####", "####", "#..#", "#..#"],
@@ -722,19 +791,21 @@ def paint_truck_emergency_decals(d, p):
             draw_text_4x5(d, "POLIZIA", side_x + 11, 242, WHITE)
     elif kind == "fire":
         YELLOW = (245, 215, 55, 255)
-        RED = (200, 30, 25, 255)
-        # Light bar (UV 244,184) — yellow + red flashers, common on fire trucks
-        # in Italy. Top + sides painted so flashers are visible from any angle.
+        BLUE = (35, 70, 230, 255)
+        # Light bar (UV 244,184) — yellow + BLUE flashers. RED used to be the
+        # second color but blended into the red truck body; blue is the
+        # standard color for Italian Vigili del Fuoco lights anyway. Top +
+        # sides painted so flashers show from any angle.
         d.rectangle([250, 184, 259, 189], fill=YELLOW)
-        d.rectangle([260, 184, 269, 189], fill=RED)
+        d.rectangle([260, 184, 269, 189], fill=BLUE)
         d.rectangle([250, 190, 259, 191], fill=YELLOW)
-        d.rectangle([260, 190, 269, 191], fill=RED)
+        d.rectangle([260, 190, 269, 191], fill=BLUE)
         d.rectangle([282, 190, 291, 191], fill=YELLOW)
-        d.rectangle([292, 190, 301, 191], fill=RED)
+        d.rectangle([292, 190, 301, 191], fill=BLUE)
         d.rectangle([244, 190, 246, 191], fill=YELLOW)
-        d.rectangle([247, 190, 249, 191], fill=RED)
+        d.rectangle([247, 190, 249, 191], fill=BLUE)
         d.rectangle([270, 190, 272, 191], fill=YELLOW)
-        d.rectangle([273, 190, 275, 191], fill=RED)
+        d.rectangle([273, 190, 275, 191], fill=BLUE)
         # Yellow side stripes on cab and cargo.
         for side_x in (0, 68):
             d.rectangle([side_x + 3, 153, side_x + 28, 155], fill=YELLOW)
@@ -745,11 +816,13 @@ def paint_truck_emergency_decals(d, p):
         # Yellow stripe down slab top center (slab top at (28,316)-(60,344)).
         # Stripe runs along z (UV vertical) at slab center x (UV col 44).
         d.rectangle([43, 318, 44, 342], fill=YELLOW)
-        # "VVF" (Vigili del Fuoco) text below the stripes on both cargo
-        # sides. 3*5-1 = 14 px wide; cargo face is 56 wide so center at u+21.
+        # "VIGILI DEL" / "FUOCO" two-line text on cargo sides. White text on
+        # the red body. Line 1 (10 chars = 49 px wide) centered at u+4;
+        # line 2 (5 chars = 24 px wide) centered at u+16.
         WHITE = (255, 255, 255, 255)
         for side_x in (0, 92):
-            draw_text_4x5(d, "VVF", side_x + 21, 242, WHITE)
+            draw_text_4x5(d, "VIGILI DEL", side_x + 4, 240, WHITE)
+            draw_text_4x5(d, "FUOCO",      side_x + 16, 247, WHITE)
     elif kind == "ambulance":
         RED = (220, 25, 25, 255)
         WHITE = (255, 255, 255, 255)
@@ -775,10 +848,11 @@ def paint_truck_emergency_decals(d, p):
         # Center at (44, 330). Cross arms 12 long × 2 wide.
         d.rectangle([43, 324, 44, 335], fill=RED)   # vertical
         d.rectangle([38, 329, 49, 330], fill=RED)   # horizontal
-        # "AMBULANZA" text below stripes on cargo sides. 9*5-1 = 44 px wide;
-        # cargo face is 56 wide so center at u+6.
+        # "AMBULANZA" text below stripes on cargo sides. RED text on the
+        # white ambulance body — was WHITE which was invisible on white.
+        # 9*5-1 = 44 px wide; cargo face is 56 wide so center at u+6.
         for side_x in (0, 92):
-            draw_text_4x5(d, "AMBULANZA", side_x + 6, 242, WHITE)
+            draw_text_4x5(d, "AMBULANZA", side_x + 6, 242, RED)
 
     # Sunflower decal on cargoExt's south face. With cargoExt now 36 wide
     # (sx=36, sz=24), south face is at (u + 2*sz + sx, v + sz) =
