@@ -14,6 +14,7 @@ public class Networking {
     public static final Identifier SHIFT_GEAR     = MyCarMod.id("shift_gear");
     public static final Identifier HANDBRAKE      = MyCarMod.id("handbrake");
     public static final Identifier SPAWN_VEHICLE  = MyCarMod.id("spawn_vehicle");
+    public static final Identifier TOGGLE_SIREN   = MyCarMod.id("toggle_siren");
 
     public static void handleShiftGear(MinecraftServer server, ServerPlayerEntity player,
                                        ServerPlayNetworkHandler handler, PacketByteBuf buf,
@@ -39,6 +40,20 @@ public class Networking {
                 AbstractVehicleEntity v = (AbstractVehicleEntity) vehicle;
                 if (v.getPrimaryPassenger() == player) {
                     v.triggerHandbrake();
+                }
+            }
+        });
+    }
+
+    public static void handleToggleSiren(MinecraftServer server, ServerPlayerEntity player,
+                                         ServerPlayNetworkHandler handler, PacketByteBuf buf,
+                                         PacketSender responseSender) {
+        server.execute(() -> {
+            Entity vehicle = player.getVehicle();
+            if (vehicle instanceof AbstractVehicleEntity) {
+                AbstractVehicleEntity v = (AbstractVehicleEntity) vehicle;
+                if (v.getPrimaryPassenger() == player) {
+                    v.toggleSiren();
                 }
             }
         });
