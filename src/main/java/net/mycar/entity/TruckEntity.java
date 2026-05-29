@@ -25,7 +25,8 @@ public class TruckEntity extends AbstractVehicleEntity implements Inventory {
 
     public static final int INVENTORY_SIZE = 54; // 6 rows of 9 - same as double chest
 
-    private static final double[] GEAR_TOP_SPEED = {0.15, 0.35, 0.55, 0.75, 0.95};
+    private static final double[] GEAR_TOP_SPEED = {0.25, 0.50, 0.75, 1.00, 1.25};
+    // ^ Top gear 1.25 b/t * 72 = 90 km/h (was 0.95 b/t = ~68 km/h)
 
     private static final double[][] SEATS = {
         { 0.45, 0.0, 2.00},  // 0 driver  - front-left of cab (US style)
