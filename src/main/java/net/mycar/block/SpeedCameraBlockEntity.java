@@ -17,6 +17,8 @@ import net.minecraft.util.Tickable;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -44,11 +46,19 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
     private static final double DETECTION_LENGTH = 10.0;
     private static final int    DETECTION_DEPTH  = 7;
     private static final int COOLDOWN_TICKS = 60;
-    /** Max age of a prior position sample to still count as "fresh enough"
-     *  for speed measurement. At 1-tick scans the typical age is 1; allow a
-     *  few missed ticks (5) but discard anything older — it means the vehicle
-     *  left and re-entered, and averaging across that gap gives wrong speed. */
-    private static final int MAX_PRIOR_AGE_TICKS = 5;
+    /** Number of recent position samples kept per vehicle. Speed is measured
+     *  across the OLDEST and NEWEST samples (i.e., over up to WINDOW_SAMPLES-1
+     *  ticks). A 5-sample window means up to 4 ticks of averaging, which is
+     *  enough to smooth out the 1-3 tick position-batching artifacts that
+     *  client-authoritative vehicle movement produces when network packets
+     *  are delayed or batched. Over any window that spans the lag, the
+     *  total position change equals total actual motion (client always
+     *  catches up), so the averaged speed is correct regardless of lag. */
+    private static final int WINDOW_SAMPLES = 5;
+    /** Maximum age (ticks) of the OLDEST sample in the window. If the queue
+     *  has gone stale (vehicle left and re-entered), we still measure speed
+     *  but with the freshest sample available. */
+    private static final int MAX_SAMPLE_AGE_TICKS = 15;
 
     /** Conversion: blocks per tick → km/h. (×20 ticks/sec, ×3.6 m/s→km/h.) */
     private static final double BLOCKS_PER_TICK_TO_KMH = 20.0 * 3.6;
@@ -57,17 +67,15 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
     private int fineAmount    = 0;
     private int tickCounter   = 0;
     private final Map<UUID, Long> recentlyTicketed = new HashMap<>();
-    /** Last-seen position for each vehicle, used to compute speed across
-     *  scans. Server-side {@code prevX}/{@code getX} delta is always 0 by
-     *  the time BEs tick (baseTick already ran), so we measure motion
-     *  ourselves over the interval between scans. Format: uuid → [x, z, tick]. */
-    private final Map<UUID, double[]> lastSeen = new HashMap<>();
+    /** Rolling history of recent positions for each vehicle. Each entry is
+     *  a deque of up to WINDOW_SAMPLES samples, each {@code [x, z, tick]}.
+     *  We measure speed across the oldest and newest in the deque, which
+     *  smooths over single-tick lag spikes. */
+    private final Map<UUID, Deque<double[]>> positionHistory = new HashMap<>();
     /** Number of CONSECUTIVE scans on which this vehicle measured over the
-     *  speed limit. We require at least 2 to fire a ticket, so that a single
-     *  spurious one-tick spike (caused by network lag batching several ticks
-     *  of motion into a single position update — a real artifact of
-     *  client-authoritative vehicle movement) doesn't trigger a false fine.
-     *  Reset to 0 whenever a scan measures the vehicle under-limit. */
+     *  speed limit (using the smoothed window speed above). Requires
+     *  MIN_CONSECUTIVE_OVER_LIMIT in a row before firing a ticket, as an
+     *  extra defense against transient measurement artifacts. */
     private final Map<UUID, Integer> consecutiveOverLimit = new HashMap<>();
     /** Minimum consecutive over-limit scans before a ticket is fired. */
     private static final int MIN_CONSECUTIVE_OVER_LIMIT = 2;
@@ -136,11 +144,14 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
         while (it.hasNext()) {
             if (it.next().getValue() <= now) it.remove();
         }
-        // Sweep lastSeen entries that haven't been refreshed for a while
-        // (vehicles that left and didn't return). Sweep consecutiveOverLimit
-        // for the same UUIDs so a re-entering vehicle starts fresh.
-        this.lastSeen.entrySet().removeIf(e -> {
-            boolean stale = now - (long) e.getValue()[2] > 200;
+        // Sweep positionHistory entries that haven't been refreshed for a
+        // while (vehicles that left and didn't return). Sweep
+        // consecutiveOverLimit for the same UUIDs so a re-entering vehicle
+        // starts fresh.
+        this.positionHistory.entrySet().removeIf(e -> {
+            Deque<double[]> q = e.getValue();
+            if (q.isEmpty()) return true;
+            boolean stale = now - (long) q.peekLast()[2] > 200;
             if (stale) this.consecutiveOverLimit.remove(e.getKey());
             return stale;
         });
@@ -161,21 +172,28 @@ public class SpeedCameraBlockEntity extends BlockEntity implements Tickable {
                 ? vehicle.getCustomName().getString()
                 : "(unnamed " + vehicle.getType().toString() + ")";
 
-            // Record current position for this vehicle BEFORE we decide whether
-            // to ticket — that way the next scan has data to compute speed from
-            // even if this scan is the vehicle's first appearance.
-            double[] prior = this.lastSeen.get(uuid);
-            this.lastSeen.put(uuid, new double[]{ vehicle.getX(), vehicle.getZ(), now });
+            // Push this scan's sample to the vehicle's rolling history.
+            // Drop the oldest sample once the queue exceeds WINDOW_SAMPLES,
+            // so the window slides forward each tick.
+            Deque<double[]> history = this.positionHistory.computeIfAbsent(
+                uuid, k -> new ArrayDeque<>(WINDOW_SAMPLES + 1));
+            history.addLast(new double[]{ vehicle.getX(), vehicle.getZ(), now });
+            while (history.size() > WINDOW_SAMPLES) {
+                history.pollFirst();
+            }
 
-            // Compute speed if we have prior data. We still want this even
-            // when below the limit / in cooldown, so the debug "last seen"
-            // readout reflects every detection.
-            double kmh = -1.0; // sentinel for "no measurement yet"
-            if (prior != null) {
-                long elapsed = now - (long) prior[2];
-                if (elapsed > 0 && elapsed <= MAX_PRIOR_AGE_TICKS) {
-                    double dx = vehicle.getX() - prior[0];
-                    double dz = vehicle.getZ() - prior[1];
+            // Compute speed across the oldest and newest samples in the
+            // window. A single-tick lag spike gets diluted across the window
+            // (typically 4 ticks at WINDOW_SAMPLES=5), so the reading reflects
+            // sustained motion rather than a one-tick measurement artifact.
+            double kmh = -1.0;
+            if (history.size() >= 2) {
+                double[] oldest = history.peekFirst();
+                double[] newest = history.peekLast();
+                long elapsed = (long) newest[2] - (long) oldest[2];
+                if (elapsed > 0 && elapsed <= MAX_SAMPLE_AGE_TICKS) {
+                    double dx = newest[0] - oldest[0];
+                    double dz = newest[1] - oldest[1];
                     double bpt = Math.sqrt(dx * dx + dz * dz) / (double) elapsed;
                     kmh = bpt * BLOCKS_PER_TICK_TO_KMH;
                 }
