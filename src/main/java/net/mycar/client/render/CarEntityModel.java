@@ -145,10 +145,10 @@ public class CarEntityModel extends EntityModel<CarEntity> {
     public void setAngles(CarEntity entity, float limbAngle, float limbDistance,
                           float animationProgress, float headYaw, float headPitch) {
         // Light bar visible only when emergency variant AND siren toggled on.
-        // Brief blink-off every 8 ticks (~12 Hz) for a strobe-like feel.
+        // 4-on / 4-off strobe (~2.5 Hz) so it clearly flashes.
         this.lightBar.visible = entity.isEmergency()
             && entity.isSirenActive()
-            && (entity.age % 8 != 0);
+            && ((entity.age / 4) % 2 == 0);
     }
 
     @Override
