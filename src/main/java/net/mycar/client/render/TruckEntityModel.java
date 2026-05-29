@@ -40,6 +40,9 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
     public final ModelPart cab;
     public final ModelPart cargo;
     public final ModelPart cargoExt;
+    public final ModelPart cabSlab;      // extra layer on top of cab (like a car hood)
+    public final ModelPart roofFairing;  // bridges cab roof to cargo top
+    public final ModelPart lightBar;     // emergency flashers (visible only for emergency variants)
     public final ModelPart frontBumper;
     public final ModelPart rearBumper;
     public final ModelPart headlightL;
@@ -85,6 +88,32 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.cargoExt = new ModelPart(this, 0, 260);
         this.cargoExt.addCuboid(-18f, -32f, 46f, 36f, 32f, 24f);
         this.cargoExt.setPivot(0f, 0f, 0f);
+
+        // ----- Cab Roof Slab (32 x 2 x 28) — extra layer on top of cab giving
+        // it visual depth (like a car hood). Sits on top of cab roof
+        // (y=-22), 2 model units thick. Inset 2 units from each side of the
+        // cab (x=-16..16, vs cab x=-18..18) and 2 units from each end
+        // (z=-44..-16, vs cab z=-46..-14) so the cab edges are visible
+        // around the slab. -----
+        this.cabSlab = new ModelPart(this, 0, 316);
+        this.cabSlab.addCuboid(-16f, -24f, -44f, 32f, 2f, 28f);
+        this.cabSlab.setPivot(0f, 0f, 0f);
+
+        // ----- Roof Fairing (36 x 10 x 4) — bridges the cab-to-cargo gap at
+        // the top. Sits in the gap (z=-14..-10), top flush with cargo top
+        // (y=-32), bottom flush with cab roof (y=-22). Visually a smooth
+        // step from cab roof up to cargo top instead of an open void. -----
+        this.roofFairing = new ModelPart(this, 240, 260);
+        this.roofFairing.addCuboid(-18f, -32f, -14f, 36f, 10f, 4f);
+        this.roofFairing.setPivot(0f, 0f, 0f);
+
+        // ----- Light Bar (20 x 2 x 6) — on cab roof, centered. Only rendered
+        // when the vehicle is an emergency variant (visibility set in
+        // setAngles). For police: blue+red flashers. For ambulance: red
+        // crosses. For fire: yellow stripes. -----
+        this.lightBar = new ModelPart(this, 244, 184);
+        this.lightBar.addCuboid(-10f, -24f, -33f, 20f, 2f, 6f);
+        this.lightBar.setPivot(0f, 0f, 0f);
 
         // ----- Front Bumper (36 x 4 x 2) — widened to match body -----
         this.frontBumper = new ModelPart(this, 168, 184);
@@ -156,7 +185,9 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
     @Override
     public void setAngles(TruckEntity entity, float limbAngle, float limbDistance,
                           float animationProgress, float headYaw, float headPitch) {
-        // No animations yet.
+        // Light bar is only visible on emergency variants — police, fire,
+        // ambulance. Other variants don't render it at all.
+        this.lightBar.visible = entity.isEmergency();
     }
 
     @Override
@@ -165,8 +196,11 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
         this.body.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.bodyExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cab.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.cabSlab.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cargo.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.cargoExt.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.roofFairing.render(matrices, vertices, light, overlay, red, green, blue, alpha);
+        this.lightBar.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.frontBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.rearBumper.render(matrices, vertices, light, overlay, red, green, blue, alpha);
         this.headlightL.render(matrices, vertices, light, overlay, red, green, blue, alpha);
