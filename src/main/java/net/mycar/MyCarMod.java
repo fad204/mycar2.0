@@ -178,5 +178,6 @@ public class MyCarMod implements ModInitializer {
         // Network handlers (shared between car and truck)
         ServerPlayNetworking.registerGlobalReceiver(Networking.SHIFT_GEAR, Networking::handleShiftGear);
         ServerPlayNetworking.registerGlobalReceiver(Networking.HANDBRAKE, Networking::handleHandbrake);
+        ServerPlayNetworking.registerGlobalReceiver(Networking.TOGGLE_SIREN, Networking::handleToggleSiren);
     }
 }
