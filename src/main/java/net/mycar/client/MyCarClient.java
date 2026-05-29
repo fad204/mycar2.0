@@ -4,6 +4,7 @@ import net.mycar.MyCarMod;
 import net.mycar.client.render.BicycleEntityRenderer;
 import net.mycar.client.render.CarEntityRenderer;
 import net.mycar.client.render.TruckEntityRenderer;
+import net.mycar.client.sound.SirenSoundInstance;
 import net.mycar.entity.AbstractVehicleEntity;
 import net.mycar.network.Networking;
 import net.fabricmc.api.ClientModInitializer;
@@ -24,6 +25,14 @@ public class MyCarClient implements ClientModInitializer {
     public static KeyBinding KEY_GEAR_UP;
     public static KeyBinding KEY_GEAR_DOWN;
     public static KeyBinding KEY_HANDBRAKE;
+    public static KeyBinding KEY_TOGGLE_SIREN;
+
+    /** UUIDs of vehicles for which we've already spawned a client-side
+     *  SirenSoundInstance. Prevents spawning duplicates per tick. The
+     *  instance auto-terminates when the vehicle deactivates its siren or
+     *  is removed; we then drop the UUID so a future re-activation gets a
+     *  fresh instance. */
+    private static final java.util.Set<java.util.UUID> activeSirens = new java.util.HashSet<>();
 
     @Override
     public void onInitializeClient() {
@@ -51,6 +60,12 @@ public class MyCarClient implements ClientModInitializer {
                 // Match what vanilla EntitySpawnS2CPacket does — without these,
                 // the entity is on the client but not fully interactable.
                 entity.updateTrackedPosition(x, y, z);
+                // Critical: this puts the entity at the correct position AND
+                // updates its chunk membership. Without it the entity sits at
+                // (0,0,0) in the chunk index, and the renderer's per-chunk
+                // entity iteration never visits it — invisible vehicle, collision
+                // ghost, no F3 hover info.
+                entity.refreshPositionAfterTeleport(x, y, z);
                 entity.setHeadYaw(yaw);
                 entity.setBodyYaw(yaw);
                 entity.pitch = pitch;
@@ -67,13 +82,39 @@ public class MyCarClient implements ClientModInitializer {
             "key.mycar.gear_down", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Z, "category.mycar.driving"));
         KEY_HANDBRAKE = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.mycar.handbrake", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_SPACE, "category.mycar.driving"));
+        KEY_TOGGLE_SIREN = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.mycar.toggle_siren", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_Y, "category.mycar.driving"));
 
         ClientTickEvents.END_CLIENT_TICK.register(MyCarClient::onClientTick);
     }
 
     private static void onClientTick(MinecraftClient client) {
+        // ---- Per-tick: keep client-side siren instances in sync with the
+        //      SIREN_ACTIVE flag on every emergency vehicle in the world.
+        //      Done before the keybind check so a vehicle activated via any
+        //      means (not just our keybind) gets a sound instance. ----
+        if (client.world != null) {
+            for (net.minecraft.entity.Entity e : client.world.getEntities()) {
+                if (!(e instanceof AbstractVehicleEntity)) continue;
+                AbstractVehicleEntity av = (AbstractVehicleEntity) e;
+                java.util.UUID id = av.getUuid();
+                if (av.isSirenActive()) {
+                    if (!activeSirens.contains(id)) {
+                        client.getSoundManager().play(new SirenSoundInstance(av));
+                        activeSirens.add(id);
+                    }
+                } else {
+                    // Siren turned off — drop tracking so the next activation
+                    // gets a fresh instance. The current instance (if any)
+                    // will self-terminate via setDone() in its tick().
+                    activeSirens.remove(id);
+                }
+            }
+        }
+
+        // ---- Per-tick: keybinds (only when actually driving) ----
         if (client.player == null) return;
-        Entity vehicle = client.player.getVehicle();
+        net.minecraft.entity.Entity vehicle = client.player.getVehicle();
         if (!(vehicle instanceof AbstractVehicleEntity)) return;
 
         AbstractVehicleEntity v = (AbstractVehicleEntity) vehicle;
@@ -95,6 +136,13 @@ public class MyCarClient implements ClientModInitializer {
             // alone wouldn't take effect on currentSpeed.
             v.triggerHandbrake();
             ClientPlayNetworking.send(Networking.HANDBRAKE, PacketByteBufs.empty());
+        }
+        while (KEY_TOGGLE_SIREN.wasPressed()) {
+            // Only meaningful on emergency variants. The server-side handler
+            // also no-ops if non-emergency, so this is defence in depth.
+            if (v.isEmergency()) {
+                ClientPlayNetworking.send(Networking.TOGGLE_SIREN, PacketByteBufs.empty());
+            }
         }
     }
 }
