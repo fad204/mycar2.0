@@ -26,7 +26,7 @@ LANG_DIR = RES_DIR / "assets/mycar/lang"
 RECIPE_DIR = RES_DIR / "data/mycar/recipes"
 
 # =============================================================
-# Shared (variant-independent) colors
+# Shared (variant-independent) colo
 # =============================================================
 WINDOW       = (130, 180, 220, 110)   # alpha < 255 => translucent glass
 WINDOW_DARK  = ( 80, 130, 180, 110)
