@@ -186,13 +186,12 @@ public class TruckEntityModel extends EntityModel<TruckEntity> {
     @Override
     public void setAngles(TruckEntity entity, float limbAngle, float limbDistance,
                           float animationProgress, float headYaw, float headPitch) {
-        // Light bar is only visible on emergency variants WHEN the driver
-        // has flipped on the lights/siren (Y key by default). A quick blink
-        // every ~0.5s (age % 8 != 0) gives a strobe-like feel without
-        // strobing so fast it makes the bar disappear half the time.
+        // Light bar visible only on emergency variants with siren toggled
+        // on, and strobes 4 ticks on / 4 ticks off (~2.5 Hz) so it actually
+        // looks like a flashing emergency light, not a static decoration.
         this.lightBar.visible = entity.isEmergency()
             && entity.isSirenActive()
-            && (entity.age % 8 != 0);
+            && ((entity.age / 4) % 2 == 0);
     }
 
     @Override
