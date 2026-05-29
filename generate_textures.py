@@ -480,6 +480,31 @@ def paint_truck(img, p):
                   "grain_color": grain, "panel_lines": 1},  # rear doors (back of truck)
     })
 
+    # Cab roof slab (32 x 2 x 28) at (0, 316) — extra layer on top of cab so
+    # it doesn't look flat from the side. Body-colored (like a car hood)
+    # sitting on the cab roof.
+    paint_cuboid(d, 0, 316, 32, 2, 28, {
+        "top":   body_cfg(p, grain=grain),
+        "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
+        "west":  body_cfg(p, grain=grain),
+        "north": body_cfg(p, grain=grain),
+        "east":  body_cfg(p, grain=grain),
+        "south": body_cfg(p, grain=grain),
+    })
+
+    # Light bar (20 x 2 x 6) at (244, 184) — sits on top of the slab. Only
+    # visible for emergency variants (visibility toggled in setAngles); for
+    # non-emergency variants this paint is irrelevant since the part isn't
+    # rendered. Emergency overrides happen in paint_truck_emergency_decals.
+    paint_cuboid(d, 244, 184, 20, 2, 6, {
+        "top":   roof_cfg(p, grain=grain),
+        "bot":   {"base": p["body_dark"], "highlight": False, "shadow": False},
+        "west":  body_cfg(p, grain=grain),
+        "north": body_cfg(p, grain=grain),
+        "east":  body_cfg(p, grain=grain),
+        "south": body_cfg(p, grain=grain),
+    })
+
     # Front bumper (36 x 4 x 2) at (168, 184) — widened to 36.
     paint_cuboid(d, 168, 184, 36, 4, 2, {
         "top": bumper_cfg(p), "bot": {"base": p["bumper_dark"], "highlight": False, "shadow": False},
@@ -613,10 +638,26 @@ def paint_truck_emergency_decals(d, p):
         BLUE = (35, 70, 230, 255)
         RED  = (220, 30, 30, 255)
         WHITE = (255, 255, 255, 255)
-        # Light bar on cab roof
-        d.rectangle([rcx - 5, rcy - 1, rcx - 1, rcy + 1], fill=BLUE)
-        d.rectangle([rcx + 1, rcy - 1, rcx + 5, rcy + 1], fill=RED)
-        d.point((rcx, rcy), fill=(0, 0, 0, 255))
+        # Light bar (20x2x6 at UV 244,184). The slab now sits on the cab roof
+        # so the old cab-top decal would be hidden — paint the lightBar
+        # cuboid faces instead. Top: 20x6 split blue/red. North/south/west/
+        # east sides: 2-tall stripes also split blue/red so flashers are
+        # visible from any angle.
+        # Top face at (250,184)-(270,190)
+        d.rectangle([250, 184, 259, 189], fill=BLUE)
+        d.rectangle([260, 184, 269, 189], fill=RED)
+        # North face (250,190)-(270,192) — front-facing
+        d.rectangle([250, 190, 259, 191], fill=BLUE)
+        d.rectangle([260, 190, 269, 191], fill=RED)
+        # South face (282,190)-(302,192) — back-facing
+        d.rectangle([282, 190, 291, 191], fill=BLUE)
+        d.rectangle([292, 190, 301, 191], fill=RED)
+        # West face (244,190)-(250,192) — left side
+        d.rectangle([244, 190, 246, 191], fill=BLUE)
+        d.rectangle([247, 190, 249, 191], fill=RED)
+        # East face (270,190)-(276,192) — right side
+        d.rectangle([270, 190, 272, 191], fill=BLUE)
+        d.rectangle([273, 190, 275, 191], fill=RED)
         # White + blue stripes on cab/cargo sides.
         for side_x in (0, 68):
             d.rectangle([side_x + 3, 152, side_x + 28, 153], fill=WHITE)
@@ -628,28 +669,60 @@ def paint_truck_emergency_decals(d, p):
         for side_x in (0, 60):
             d.rectangle([side_x + 2, 284, side_x + 22, 285], fill=WHITE)
             d.rectangle([side_x + 2, 286, side_x + 22, 287], fill=BLUE)
+        # White + blue stripe on slab top (top face at (28,316)-(60,344)).
+        # Two parallel stripes running along the slab length (UV vertical).
+        d.rectangle([42, 318, 43, 342], fill=WHITE)
+        d.rectangle([44, 318, 45, 342], fill=BLUE)
     elif kind == "fire":
         YELLOW = (245, 215, 55, 255)
-        # Yellow stripe along cab roof (cab top is now 36 wide)
-        d.rectangle([rx0 + 2, rcy - 1, rx0 + 33, rcy + 1], fill=YELLOW)
+        RED = (200, 30, 25, 255)
+        # Light bar (UV 244,184) — yellow + red flashers, common on fire trucks
+        # in Italy. Top + sides painted so flashers are visible from any angle.
+        d.rectangle([250, 184, 259, 189], fill=YELLOW)
+        d.rectangle([260, 184, 269, 189], fill=RED)
+        d.rectangle([250, 190, 259, 191], fill=YELLOW)
+        d.rectangle([260, 190, 269, 191], fill=RED)
+        d.rectangle([282, 190, 291, 191], fill=YELLOW)
+        d.rectangle([292, 190, 301, 191], fill=RED)
+        d.rectangle([244, 190, 246, 191], fill=YELLOW)
+        d.rectangle([247, 190, 249, 191], fill=RED)
+        d.rectangle([270, 190, 272, 191], fill=YELLOW)
+        d.rectangle([273, 190, 275, 191], fill=RED)
+        # Yellow side stripes on cab and cargo.
         for side_x in (0, 68):
             d.rectangle([side_x + 3, 153, side_x + 28, 155], fill=YELLOW)
         for side_x in (0, 92):
             d.rectangle([side_x + 3, 235, side_x + 52, 237], fill=YELLOW)
         for side_x in (0, 60):
             d.rectangle([side_x + 2, 285, side_x + 22, 287], fill=YELLOW)
+        # Yellow stripe down slab top center (slab top at (28,316)-(60,344)).
+        # Stripe runs along z (UV vertical) at slab center x (UV col 44).
+        d.rectangle([43, 318, 44, 342], fill=YELLOW)
     elif kind == "ambulance":
         RED = (220, 25, 25, 255)
-        # Big red cross on cab roof
-        d.rectangle([rcx - 1, rcy - 4, rcx + 1, rcy + 4], fill=RED)
-        d.rectangle([rcx - 4, rcy - 1, rcx + 4, rcy + 1], fill=RED)
-        # Red side stripes on cab and cargo
+        WHITE = (255, 255, 255, 255)
+        # Light bar (UV 244,184) — red flashers with white cross accent in
+        # the center of the top face.
+        d.rectangle([250, 184, 269, 189], fill=RED)
+        # White cross detail (4x4) on top face center
+        d.rectangle([258, 185, 261, 188], fill=WHITE)
+        d.rectangle([259, 184, 260, 189], fill=WHITE)
+        # Sides solid red
+        d.rectangle([250, 190, 269, 191], fill=RED)
+        d.rectangle([282, 190, 301, 191], fill=RED)
+        d.rectangle([244, 190, 249, 191], fill=RED)
+        d.rectangle([270, 190, 275, 191], fill=RED)
+        # Red side stripes on cab and cargo (existing layout).
         for side_x in (0, 68):
             d.rectangle([side_x + 3, 153, side_x + 28, 155], fill=RED)
         for side_x in (0, 92):
             d.rectangle([side_x + 3, 235, side_x + 52, 237], fill=RED)
         for side_x in (0, 60):
             d.rectangle([side_x + 2, 285, side_x + 22, 287], fill=RED)
+        # Red cross on cab slab top (UV slab top at (28,316)-(60,344), 32x28).
+        # Center at (44, 330). Cross arms 12 long × 2 wide.
+        d.rectangle([43, 324, 44, 335], fill=RED)   # vertical
+        d.rectangle([38, 329, 49, 330], fill=RED)   # horizontal
 
     # Sunflower decal on cargoExt's south face. With cargoExt now 36 wide
     # (sx=36, sz=24), south face is at (u + 2*sz + sx, v + sz) =
@@ -664,10 +737,11 @@ def paint_bicycle(img, p):
     d = ImageDraw.Draw(img)
     grain = p["panel_line"] if p["grain"] else None
 
-    # Wheels (2 x 12 x 12) at u_off (0 = front, 28 = rear).
-    # West face at (u_off, 12) size (12, 12); east face at (u_off+14, 12) size (12, 12).
-    for u_off in (0, 28):
-        paint_cuboid(d, u_off, 0, 2, 12, 12, {
+    # Wheels (2 x 8 x 8) at u_off (0 = front, 20 = rear). Smaller and spaced
+    # apart from each other in the model (0.5-block gap between them).
+    # West face at (u_off, 8) size (8, 8); east face at (u_off+10, 8) size (8, 8).
+    for u_off in (0, 20):
+        paint_cuboid(d, u_off, 0, 2, 8, 8, {
             "top":   {"base": WHEEL, "highlight": False, "shadow": False},
             "bot":   {"base": WHEEL, "highlight": False, "shadow": False},
             "west":  {"base": WHEEL, "highlight": False, "shadow": False},
@@ -676,20 +750,18 @@ def paint_bicycle(img, p):
             "south": {"base": WHEEL, "highlight": False, "shadow": False},
         })
         # Rim + spokes on BOTH west and east faces so both sides look right.
-        for rx in (u_off, u_off + 14):
-            ry = 12
-            d.rectangle([rx + 1, ry + 1, rx + 10, ry + 10], outline=WHEEL_RIM)
-            d.rectangle([rx + 5, ry + 5, rx + 6, ry + 6], fill=WHEEL_HUB)
-            d.point((rx + 5, ry + 2), fill=WHEEL_RIM)
-            d.point((rx + 5, ry + 9), fill=WHEEL_RIM)
-            d.point((rx + 2, ry + 5), fill=WHEEL_RIM)
-            d.point((rx + 9, ry + 5), fill=WHEEL_RIM)
-            d.point((rx + 3, ry + 3), fill=WHEEL_RIM)
-            d.point((rx + 8, ry + 8), fill=WHEEL_RIM)
-            d.point((rx + 8, ry + 3), fill=WHEEL_RIM)
-            d.point((rx + 3, ry + 8), fill=WHEEL_RIM)
-            # Round corners of the 12x12 rim face.
-            for dx, dy in [(0, 0), (11, 0), (0, 11), (11, 11)]:
+        for rx in (u_off, u_off + 10):
+            ry = 8
+            d.rectangle([rx + 1, ry + 1, rx + 6, ry + 6], outline=WHEEL_RIM)
+            d.point((rx + 3, ry + 3), fill=WHEEL_HUB)
+            d.point((rx + 4, ry + 4), fill=WHEEL_HUB)
+            # 4 spoke endpoints
+            d.point((rx + 3, ry + 1), fill=WHEEL_RIM)
+            d.point((rx + 4, ry + 6), fill=WHEEL_RIM)
+            d.point((rx + 1, ry + 4), fill=WHEEL_RIM)
+            d.point((rx + 6, ry + 3), fill=WHEEL_RIM)
+            # Round corners of the 8x8 face.
+            for dx, dy in [(0, 0), (7, 0), (0, 7), (7, 7)]:
                 d.point((rx + dx, ry + dy), fill=(0, 0, 0, 0))
 
     # Top tube (2 x 2 x 16) at (56, 0)
