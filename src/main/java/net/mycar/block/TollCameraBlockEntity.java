@@ -2,6 +2,7 @@ package net.mycar.block;
 
 import net.mycar.MyCarMod;
 import net.mycar.entity.AbstractVehicleEntity;
+import net.mycar.entity.BicycleEntity;
 import net.mycar.util.RfcAccountState;
 import net.mycar.util.RfcCurrency;
 import net.minecraft.block.BlockState;
@@ -114,6 +115,11 @@ public class TollCameraBlockEntity extends BlockEntity implements Tickable {
             AbstractVehicleEntity.class, scan, e -> true);
 
         for (AbstractVehicleEntity vehicle : vehicles) {
+            // Bikes and emergency vehicles (police/fire/ambulance) pass through
+            // toll gates without being charged.
+            if (vehicle instanceof BicycleEntity) continue;
+            if (vehicle.isEmergency()) continue;
+
             UUID uuid = vehicle.getUuid();
             if (this.recentlyCharged.containsKey(uuid)) continue;
 
